@@ -43,8 +43,7 @@ import {
   UserCheck,
   HardHat,
   Star,
-  Power,
-  FileUser // New Icon
+  Power
 } from 'lucide-react';
 import { User, SystemSettings, Report, Staff, Citizen, ServiceRequest, Role, ServiceRating } from './types';
 import { MOCK_USERS, MOCK_REPORTS, MOCK_STAFF, MOCK_CITIZENS, MOCK_SERVICE_REQUESTS } from './constants';
@@ -481,7 +480,7 @@ const App: React.FC = () => {
         title: 'MENU WARGA',
         items: [
           { id: 'WARGA_DASHBOARD', label: 'Beranda', icon: <Home size={20} />, color: 'bg-teal-600' },
-          { id: 'WARGA_PROFILE', label: 'Profil Saya', icon: <FileUser size={20} />, color: 'bg-indigo-500' },
+          { id: 'WARGA_PROFILE', label: 'Profil Saya', icon: <UserCircle size={20} />, color: 'bg-indigo-500' },
           { id: 'WARGA_LAPOR', label: 'Laporan Saya', icon: <MessageSquareWarning size={20} />, color: 'bg-rose-500' },
           { id: 'WARGA_SURAT', label: 'Layanan Surat', icon: <FileText size={20} />, color: 'bg-blue-500' },
         ]
