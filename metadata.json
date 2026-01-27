@@ -1,0 +1,8 @@
+{
+  "name": "SIPATU GROSEL 0.1.0 Beta-push",
+  "description": "Update Lock Akhir",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera"
+  ]
+}
