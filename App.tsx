@@ -45,8 +45,7 @@ import {
   Star,
   Power
 } from 'lucide-react';
-import { User, SystemSettings, Report, Staff, Citizen, ServiceRequest, Role, ServiceRating } from './types';
-import { MOCK_USERS, MOCK_REPORTS, MOCK_STAFF, MOCK_CITIZENS, MOCK_SERVICE_REQUESTS } from './constants';
+import { User, SystemSettings, Report, Staff, Citizen, ServiceRequest, Role, ServiceRating, PPSU, FKDM, KarangTaruna } from './types';
 import PPSUSection from './components/PPSUSection';
 import DutySection from './components/DutySection';
 import StatisticsSection from './components/StatisticsSection';
@@ -73,6 +72,9 @@ import WargaSuratSection from './components/WargaSuratSection';
 import WargaMainDashboard from './components/WargaMainDashboard'; 
 import PartnerRTRWSection from './components/PartnerRTRWSection'; // Added Import
 import LoginPage from './components/LoginPage';
+import { apiService } from './services/api';
+import { renderSubmenuContent, submenuToPath, pathToSubmenu } from './routesMap';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 // Updated Submenu Types
 type Submenu = 
@@ -228,7 +230,23 @@ const StaffDashboardSection: React.FC<{ user: User, citizens: Citizen[], staff: 
 };
 
 const App: React.FC = () => {
-  const [activeSubmenu, setActiveSubmenu] = useState<Submenu>('MAIN_DASHBOARD');
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  // Derived state from URL to prevent loop
+  const activeSubmenu = useMemo(() => {
+    return pathToSubmenu(location.pathname) as Submenu;
+  }, [location.pathname]);
+
+  const setActiveSubmenu = (menu: Submenu | string) => {
+    // If the new menu maps to current path, do nothing
+    // This prevents re-navigating to same page which might cause re-renders
+    const path = submenuToPath[menu as string];
+    if (path && path !== location.pathname) {
+      navigate(path);
+    }
+  };
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isSidebarHidden, setIsSidebarHidden] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -236,40 +254,17 @@ const App: React.FC = () => {
   const [activeSelectorTab, setActiveSelectorTab] = useState<string>('Administrator');
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false); 
   
-  const [reports, setReports] = useState<Report[]>(MOCK_REPORTS);
-  const [staffList, setStaffList] = useState<Staff[]>(MOCK_STAFF);
-  const [citizens, setCitizens] = useState<Citizen[]>(MOCK_CITIZENS);
-  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>(MOCK_SERVICE_REQUESTS);
-  const [ratings, setRatings] = useState<ServiceRating[]>(() => loadData('app_ratings', []));
+  const [reports, setReports] = useState<Report[]>([]);
+  const [ppsuList, setPpsuList] = useState<PPSU[]>([]);
+  const [fkdmList, setFkdmList] = useState<FKDM[]>([]);
+  const [karangTarunaList, setKarangTarunaList] = useState<KarangTaruna[]>([]);
+  const [citizens, setCitizens] = useState<Citizen[]>([]);
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([]);
+  const [ratings, setRatings] = useState<ServiceRating[]>([]);
 
   // Derive initial users from all data sources (excluding static dummy citizens)
-  const initialUsers: User[] = useMemo(() => {
-    const internal = MOCK_USERS;
-    
-    const ppsuUsers = MOCK_STAFF.map(s => ({
-      id: `USR-PPSU-${s.id}`,
-      name: s.namaLengkap,
-      username: s.nomorAnggota.toLowerCase(),
-      nik: s.nik,
-      role: 'PPSU' as Role,
-      avatar: s.fotoProfile,
-      password: '123'
-    }));
-
-    const citizenUsers = MOCK_CITIZENS.map(c => ({
-      id: `USR-CIT-${c.id}`,
-      name: c.namaLengkap,
-      username: `gs-${c.nik.slice(-4)}`,
-      nik: c.nik,
-      role: 'Warga' as Role,
-      avatar: c.fotoWajah || `https://ui-avatars.com/api/?name=${encodeURIComponent(c.namaLengkap)}&background=random`,
-      password: c.nik
-    }));
-
-    return [...internal, ...ppsuUsers, ...citizenUsers];
-  }, []);
-
-  const [users, setUsers] = useState<User[]>(() => loadData('app_users', initialUsers));
+  // NOW: We rely on the users fetched from API
+  const [users, setUsers] = useState<User[]>([]);
   
   // LOGIN STATE - Initialize as null to show Login Page first
   const [currentUser, setCurrentUser] = useState<User | null>(() => loadData('app_session', null)); 
@@ -309,9 +304,53 @@ const App: React.FC = () => {
     }
   }, [currentUser]);
   
-  useEffect(() => { saveData('app_settings', settings); }, [settings]);
-  useEffect(() => { saveData('app_users', users); }, [users]);
-  useEffect(() => { saveData('app_ratings', ratings); }, [ratings]);
+  // Removed localStorage sync for data lists to ensure SQL is the only source of truth
+  // useEffect(() => { saveData('app_settings', settings); }, [settings]);
+  // useEffect(() => { saveData('app_users', users); }, [users]);
+  // useEffect(() => { saveData('app_ratings', ratings); }, [ratings]);
+
+  // Load data from API when available
+  useEffect(() => {
+    (async () => {
+      try {
+        const [apiUsers, apiCitizens, apiStaff, apiReports, apiServices, apiRatings, apiSettings] = await Promise.all([
+          apiService.getUsers(),
+          apiService.getCitizens(),
+          apiService.getStaff(),
+          apiService.getReports(),
+          apiService.getServices(),
+          apiService.getRatings(),
+          apiService.getSettings()
+        ]);
+        if (apiUsers) setUsers(apiUsers as unknown as User[]);
+        if (apiCitizens) setCitizens(apiCitizens as unknown as Citizen[]);
+        if (apiStaff) setPpsuList(apiStaff as unknown as PPSU[]);
+        if (apiReports) setReports(apiReports as unknown as Report[]);
+        if (apiServices) setServiceRequests(apiServices as unknown as ServiceRequest[]);
+        if (apiRatings) setRatings(apiRatings as unknown as ServiceRating[]);
+        if (apiSettings) setSettings(prev => ({ ...prev, ...apiSettings }));
+      } catch (e) {
+        console.error('API load failed, using local mock data', e);
+      }
+    })();
+  }, []);
+
+  // Removed Effects syncing activeSubmenu <-> URL to prevent loop
+  /*
+  useEffect(() => {
+    const sub = pathToSubmenu(location.pathname);
+    if (sub && sub !== activeSubmenu) {
+      setActiveSubmenu(sub as Submenu);
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const path = submenuToPath[activeSubmenu] || '/';
+    if (location.pathname !== path) {
+      navigate(path, { replace: true });
+    }
+  }, [activeSubmenu]);
+  */
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
@@ -369,103 +408,37 @@ const App: React.FC = () => {
 
   // IF NOT LOGGED IN, SHOW LOGIN PAGE
   if (!currentUser) {
-    return <LoginPage onLogin={handleLoginSuccess} settings={settings} users={users} />;
+    return <LoginPage onLogin={handleLoginSuccess} settings={settings} />;
   }
 
   const renderContent = () => {
-    // Determine the current citizen object if the logged-in user is a citizen
-    const currentCitizen = currentUser.role === 'Warga' 
-        ? citizens.find(c => c.nik === currentUser.nik) 
-        : undefined;
-
-    switch (activeSubmenu) {
-      // --- WARGA ROUTES ---
-      case 'WARGA_DASHBOARD':
-        return <WargaMainDashboard citizen={currentCitizen} reports={reports} requests={serviceRequests} onNavigate={(menu) => setActiveSubmenu(menu as Submenu)} />;
-      case 'WARGA_PROFILE':
-        return <WargaProfileSection citizen={currentCitizen} />;
-      case 'WARGA_SURAT':
-        // Reuse ServiceList but filter for current user only and enable Warga View mode
-        return <ServiceListSection 
-                  requests={serviceRequests.filter(req => req.applicantNik === currentUser.nik)} 
-                  setRequests={setServiceRequests} 
-                  citizens={citizens} 
-                  onNavigateToCitizen={() => {}} 
-                  users={users} 
-                  isWargaView={true}
-                  userFilter={currentUser.nik}
-               />;
-      case 'WARGA_LAPOR':
-        // Reuse ReportList but filter for current user only
-        return <ReportListSection 
-                  type="active" 
-                  reports={reports} 
-                  setReports={setReports} 
-                  staffList={staffList} 
-                  setStaffList={setStaffList} 
-                  users={users} 
-                  citizens={citizens}
-                  userFilter={currentUser.nik} // Pass NIK to filter reports
-               />;
-
-      // --- ADMIN/STAFF/MITRA ROUTES ---
-      case 'MAIN_DASHBOARD':
-        return <MainDashboardSection user={currentUser} onNavigate={(menu) => setActiveSubmenu(menu as Submenu)} />;
-      case 'STAFF_DASHBOARD':
-        return <StaffDashboardSection user={currentUser} citizens={citizens} staff={staffList} reports={reports} services={serviceRequests} />;
-      case 'DASHBOARD_WARGA':
-        return <CitizenDashboardSection citizens={citizens} />;
-      case 'DATA_WARGA':
-        return <CitizenSection users={users} setUsers={setUsers} citizens={citizens} setCitizens={setCitizens} />;
-      case 'STATS_WARGA':
-        return <CitizenStatisticsSection />;
-      case 'SERVICE_DASHBOARD':
-        return <ServiceDashboardSection requests={serviceRequests} />;
-      case 'STAFF_SERVICE_LIST':
-      case 'SERVICE_LIST':
-        return <ServiceListSection requests={serviceRequests} setRequests={setServiceRequests} citizens={citizens} onNavigateToCitizen={() => setActiveSubmenu('DATA_WARGA')} users={users} />;
-      case 'SERVICE_STATS':
-        return <ServiceStatisticsSection requests={serviceRequests} />;
-      case 'SERVICE_RATING':
-        return <ServiceRatingSection ratings={ratings} />;
-      case 'ANJUNGAN_MANDIRI':
-        return <AnjunganMandiriSection settings={settings} citizens={citizens} requests={serviceRequests} ratings={ratings} onSaveRequest={(req) => setServiceRequests(prev => [req, ...prev])} onSaveRating={(rating) => setRatings(prev => [rating, ...prev])} onExit={() => { setActiveSubmenu('SERVICE_DASHBOARD'); setIsSidebarHidden(false); }} />;
-      case 'DASHBOARD':
-        return <DashboardSection user={currentUser} onNavigate={(menu) => setActiveSubmenu(menu as Submenu)} staffList={staffList} />;
-      case 'PPSU':
-        return <PPSUSection user={currentUser} staffList={staffList} setStaffList={setStaffList} />;
-      case 'MONITORING':
-        return <DutySection user={currentUser} reports={reports} setReports={setReports} staffList={staffList} setStaffList={setStaffList} />;
-      case 'MAP_PPSU':
-        return <MapSection reports={reports} setReports={setReports} staffList={staffList} setStaffList={setStaffList} />;
-      case 'ABSENSI':
-        return <AttendanceSection user={currentUser} />;
-      case 'STATS':
-        return <StatisticsSection />;
-      case 'REPORT_DASHBOARD':
-        return <ReportDashboardSection reports={reports} />;
-      case 'REPORT_LIST':
-        return <ReportListSection type="active" reports={reports} setReports={setReports} staffList={staffList} setStaffList={setStaffList} users={users} citizens={citizens} />;
-      case 'REPORT_HISTORY':
-        return <ReportListSection type="history" reports={reports} setReports={setReports} staffList={staffList} setStaffList={setStaffList} users={users} citizens={citizens} />;
-      case 'REPORT_MAP':
-        return <ReportMapSection reports={reports} setReports={setReports} staffList={staffList} setStaffList={setStaffList} />;
-      case 'REPORT_STATS':
-        return <ReportStatisticsSection reports={reports} setReports={setReports} staffList={staffList} setStaffList={setStaffList} />;
-      case 'SETTINGS':
-        return <SettingsSection settings={settings} onUpdate={setSettings} />;
-      case 'USER_MANAGEMENT':
-        return <UserManagementSection users={users} setUsers={setUsers} initialTab="SEMUA" />;
-      // --- PARTNER ROUTES ---
-      case 'PARTNER_RTRW':
-        return <PartnerRTRWSection />; // Replaced with dedicated component
-      case 'PARTNER_LMK':
-      case 'PARTNER_FKDM':
-      case 'PARTNER_KARANG_TARUNA':
-        return <UserManagementSection users={users} setUsers={setUsers} initialTab="LAINNYA" />;
-      default:
-        return <MainDashboardSection user={currentUser} onNavigate={(menu) => setActiveSubmenu(menu as Submenu)} />;
-    }
+    return renderSubmenuContent({
+      activeSubmenu,
+      currentUser,
+      settings,
+      users,
+      setUsers,
+      setSettings,
+      citizens,
+      setCitizens,
+      staffList: ppsuList as unknown as Staff[],
+      setStaffList: setPpsuList as unknown as any,
+      ppsuList,
+      setPpsuList,
+      fkdmList,
+      setFkdmList,
+      karangTarunaList,
+      setKarangTarunaList,
+      reports,
+      setReports,
+      serviceRequests,
+      setServiceRequests,
+      ratings,
+      setRatings,
+      setActiveSubmenu: (id: string) => setActiveSubmenu(id as Submenu),
+      setIsSidebarHidden,
+      staffDashboardRenderer: () => <StaffDashboardSection user={currentUser} citizens={citizens} staff={ppsuList as unknown as Staff[]} reports={reports} services={serviceRequests} />
+    });
   };
 
   const isWarga = currentUser.role === 'Warga';

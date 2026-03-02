@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Save, Image, Type, Layout, Palette, CheckCircle2, Tag, UploadCloud, AlertTriangle, Database, Trash2, RefreshCw, Monitor } from 'lucide-react';
 import { SystemSettings } from '../types';
+import { apiService } from '../services/api';
 
 interface SettingsSectionProps {
   settings: SystemSettings;
@@ -30,13 +31,19 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate })
     setStorageUsage(kb > 1024 ? `${(kb / 1024).toFixed(2)} MB` : `${kb.toFixed(2)} KB`);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    onUpdate(localSettings);
-    setIsSaved(true);
-    // Explicit alert as requested
-    alert("Pengaturan sistem berhasil disimpan!");
-    setTimeout(() => setIsSaved(false), 3000);
+    try {
+        await apiService.saveSettings(localSettings);
+        onUpdate(localSettings);
+        setIsSaved(true);
+        // Explicit alert as requested
+        alert("Pengaturan sistem berhasil disimpan ke database!");
+        setTimeout(() => setIsSaved(false), 3000);
+    } catch (err) {
+        console.error(err);
+        alert("Gagal menyimpan pengaturan ke database.");
+    }
   };
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,21 +96,26 @@ const SettingsSection: React.FC<SettingsSectionProps> = ({ settings, onUpdate })
     }
   };
 
-  const handleResetDatabase = () => {
-    if (confirm("PERINGATAN: Tindakan ini akan MENGHAPUS SEMUA DATA yang tersimpan (User, Warga, Laporan, Staff) dan mengembalikannya ke data awal (Mock Data).\n\nApakah Anda yakin?")) {
+  const handleResetDatabase = async () => {
+    if (confirm("PERINGATAN: Tindakan ini akan MENGHAPUS SEMUA DATA di DATABASE (User, Warga, Laporan, Staff) dan mengembalikannya ke data awal (Mock Data).\n\nApakah Anda yakin?")) {
         try {
-            // Remove specific keys
+            await apiService.resetDatabase();
+            
+            // Remove specific keys from localStorage as well
             localStorage.removeItem('app_users');
             localStorage.removeItem('app_reports');
             localStorage.removeItem('app_staff');
             localStorage.removeItem('app_citizens');
+            localStorage.removeItem('app_service_requests');
+            localStorage.removeItem('app_ratings');
             // Keep session and settings usually, but let's keep settings
             // localStorage.removeItem('app_session'); // Force logout? Maybe better not to abrupt
-            alert("Database berhasil di-reset. Halaman akan dimuat ulang.");
+            
+            alert("Database berhasil di-reset ke kondisi awal. Halaman akan dimuat ulang.");
             window.location.reload();
         } catch (e) {
             console.error("Failed to reset", e);
-            alert("Gagal mereset database.");
+            alert("Gagal mereset database. Pastikan server backend berjalan.");
         }
     }
   };

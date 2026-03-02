@@ -84,7 +84,10 @@ const AddCitizenModal: React.FC<AddCitizenModalProps> = ({ onClose, onSave, citi
   // Populate data if editing
   useEffect(() => {
     if (citizen) {
-      setFormData(citizen);
+      setFormData(prev => ({
+          ...prev,
+          ...citizen
+      }));
     }
   }, [citizen]);
 
@@ -161,6 +164,35 @@ const AddCitizenModal: React.FC<AddCitizenModalProps> = ({ onClose, onSave, citi
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     
+    // Custom Validation Logic
+    if (name === 'nik' || name === 'kk') {
+        // Max 16 chars, numeric only
+        const val = value.replace(/\D/g, '').slice(0, 16);
+        setFormData(prev => ({ ...prev, [name]: val }));
+        return;
+    }
+
+    if (name === 'rt' || name === 'rw') {
+        // Max 2 chars, numeric only, no leading zeros
+        let val = value.replace(/\D/g, '').slice(0, 2);
+        if (val.length > 0 && val.startsWith('0')) {
+            val = val.replace(/^0+/, '');
+        }
+        setFormData(prev => ({ ...prev, [name]: val }));
+        return;
+    }
+
+    if (name === 'nomorWhatsapp') {
+        // Numeric only, max 14 chars, auto-replace 0 prefix with 62
+        let val = value.replace(/\D/g, '');
+        if (val.startsWith('0')) {
+            val = '62' + val.substring(1);
+        }
+        val = val.slice(0, 14);
+        setFormData(prev => ({ ...prev, [name]: val }));
+        return;
+    }
+
     if (name === 'kewarganegaraan') {
         if (value === CitizenshipStatus.WNA) {
             setFormData(prev => ({ 
@@ -348,7 +380,7 @@ const AddCitizenModal: React.FC<AddCitizenModalProps> = ({ onClose, onSave, citi
         }
       });
 
-      const responseText = response.text;
+      const responseText = String(response.text || '');
       const jsonString = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
       const extractedData = JSON.parse(jsonString);
 
@@ -461,6 +493,12 @@ const AddCitizenModal: React.FC<AddCitizenModalProps> = ({ onClose, onSave, citi
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (formData.nomorWhatsapp && formData.nomorWhatsapp.length < 9) {
+        alert('Nomor WhatsApp minimal harus 9 angka.');
+        return;
+    }
+
     onSave({
       id: citizen?.id || `CIT-${Date.now()}`,
       ...formData
@@ -489,8 +527,7 @@ const AddCitizenModal: React.FC<AddCitizenModalProps> = ({ onClose, onSave, citi
                <div className="shrink-0 relative">
                   <div className="w-32 h-32 rounded-full bg-slate-100 border-4 border-white shadow-lg overflow-hidden flex items-center justify-center group">
                     {formData.fotoWajah ? (
-                      /* FIX: Changed object-cover to object-contain and added bg-slate-50 */
-                      <img src={formData.fotoWajah} alt="Preview" className="w-full h-full object-contain bg-slate-50" />
+                      <img src={formData.fotoWajah} alt="Preview" className="w-full h-full object-cover bg-slate-50" />
                     ) : (
                       <User size={48} className="text-slate-300" />
                     )}
@@ -878,7 +915,7 @@ const AddCitizenModal: React.FC<AddCitizenModalProps> = ({ onClose, onSave, citi
                        <div className="relative w-full h-48 rounded-xl overflow-hidden border-2 border-slate-200 z-0">
                           <div ref={mapContainerRef} className="w-full h-full z-0" style={{ zIndex: 0 }} />
                           <div className="absolute top-2 left-2 z-[400] bg-white/90 backdrop-blur px-2 py-1 rounded border border-slate-200 shadow-sm text-[10px] font-mono font-bold text-slate-700">
-                             Lat: {formData.latitude?.toFixed(6)}, Lng: {formData.longitude?.toFixed(6)}
+                             Lat: {typeof formData.latitude === 'number' ? formData.latitude.toFixed(6) : '-'}, Lng: {typeof formData.longitude === 'number' ? formData.longitude.toFixed(6) : '-'}
                           </div>
                        </div>
                        <p className="text-[10px] text-slate-400 italic">*Geser pin untuk menyesuaikan lokasi presisi.</p>

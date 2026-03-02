@@ -2,11 +2,10 @@
 import React, { useMemo } from 'react';
 import { 
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
-  PieChart, Pie, Cell, Legend
+  Cell
 } from 'recharts';
-/* Fix: Added missing BarChart3 and Clock imports from lucide-react to resolve "Cannot find name" errors */
-import { Star, Smile, Meh, Frown, Heart, Users, MessageSquareQuote, History, FileText, BarChart3, Clock } from 'lucide-react';
-import { ServiceRating, ServiceRatingValue } from '../types';
+import { Star, Heart, Users, MessageSquareQuote, History, BarChart3, Clock } from 'lucide-react';
+import { ServiceRating } from '../types';
 
 interface ServiceRatingSectionProps {
   ratings: ServiceRating[];
@@ -98,7 +97,7 @@ const ServiceRatingSection: React.FC<ServiceRatingSectionProps> = ({ ratings }) 
                <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 20, right: 30, left: 0, bottom: 5 }}>
                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                     <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeights: 800, fill: '#64748b'}} />
+                    <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{fontSize: 11, fontWeight: 800, fill: '#64748b'}} />
                      <YAxis axisLine={false} tickLine={false} tick={{fontSize: 11, fill: '#64748b'}} />
                      <Tooltip 
                         cursor={{fill: '#f8fafc'}}

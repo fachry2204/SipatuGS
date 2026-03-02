@@ -108,8 +108,7 @@ const CitizenProfileModal: React.FC<CitizenProfileModalProps> = ({ citizen, onCl
                     <div className="shrink-0 mx-auto md:mx-0 relative">
                         <div className="w-32 h-32 rounded-3xl border-[6px] border-white bg-white shadow-xl overflow-hidden flex items-center justify-center relative z-10">
                             {citizen.fotoWajah ? (
-                                /* FIX: Changed object-cover to object-contain and added bg-slate-50 */
-                                <img src={citizen.fotoWajah} alt={citizen.namaLengkap} className="w-full h-full object-contain bg-slate-50" />
+                                <img src={citizen.fotoWajah} alt={citizen.namaLengkap} className="w-full h-full object-cover bg-slate-50" />
                             ) : (
                                 <div className={`w-full h-full flex items-center justify-center text-4xl font-bold text-white ${citizen.jenisKelamin === Gender.MALE ? 'bg-blue-400' : 'bg-pink-400'}`}>
                                     {citizen.namaLengkap.substring(0,1)}
@@ -188,7 +187,9 @@ const CitizenProfileModal: React.FC<CitizenProfileModalProps> = ({ citizen, onCl
                                         <label className="text-xs text-slate-400 block mb-1">Tanggal Lahir</label>
                                         <div className="flex items-center gap-2 font-semibold text-slate-700">
                                             <Calendar size={14} className="text-teal-500" /> 
-                                            {new Date(citizen.tanggalLahir).toLocaleDateString('id-ID', { dateStyle: 'medium' })}
+                                            {citizen.tanggalLahir && !isNaN(new Date(citizen.tanggalLahir).getTime()) 
+                                                ? new Date(citizen.tanggalLahir).toLocaleDateString('id-ID', { dateStyle: 'medium' }) 
+                                                : '-'}
                                         </div>
                                     </div>
                                 </div>
@@ -216,11 +217,19 @@ const CitizenProfileModal: React.FC<CitizenProfileModalProps> = ({ citizen, onCl
                                         </div>
                                     </div>
                                     <div>
-                                        <label className="text-xs text-slate-400 block mb-1">Pekerjaan</label>
+                                        <label className="text-xs text-slate-400 block mb-1">Status Kematian</label>
                                         <div className="flex items-center gap-2 font-semibold text-slate-700">
-                                            <Briefcase size={14} className="text-slate-400" />
-                                            {citizen.pekerjaan}
+                                            <Flag size={14} className={citizen.statusKematian === 'Meninggal' ? 'text-red-500' : 'text-green-500'} />
+                                            {citizen.statusKematian || 'Hidup'}
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1">
+                                    <label className="text-xs text-slate-400 block mb-1">Pekerjaan</label>
+                                    <div className="flex items-center gap-2 font-semibold text-slate-700">
+                                        <Briefcase size={14} className="text-slate-400" />
+                                        {citizen.pekerjaan}
                                     </div>
                                 </div>
 
@@ -339,7 +348,7 @@ const CitizenProfileModal: React.FC<CitizenProfileModalProps> = ({ citizen, onCl
                                     <div className="relative w-full h-40 rounded-xl overflow-hidden border border-slate-200 shadow-inner">
                                         <div ref={mapContainerRef} className="w-full h-full z-0" />
                                         <div className="absolute bottom-2 right-2 bg-white/90 backdrop-blur px-2 py-1 text-[10px] rounded shadow-sm text-slate-500 z-[400] font-mono">
-                                            {citizen.latitude?.toFixed(5)}, {citizen.longitude?.toFixed(5)}
+                                            {typeof citizen.latitude === 'number' ? citizen.latitude.toFixed(5) : '-'}, {typeof citizen.longitude === 'number' ? citizen.longitude.toFixed(5) : '-'}
                                         </div>
                                     </div>
                                 </div>

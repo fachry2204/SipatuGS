@@ -87,7 +87,7 @@ const ReportActionModal: React.FC<ReportActionModalProps> = ({ report, role, sta
 
     let nextStatus = report.status;
     let updates: Partial<Report> = {};
-    let staffUpdates: Staff[] = [];
+    let staffUpdates: PPSU[] = [];
     const now = new Date();
     const timestamp = now.toLocaleString('id-ID');
 

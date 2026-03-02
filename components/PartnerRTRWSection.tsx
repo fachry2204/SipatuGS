@@ -1,5 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { apiService } from '../services/api';
+import { User, Role } from '../types';
 import { 
   Home, 
   Users, 
@@ -11,11 +13,17 @@ import {
   Building2,
   X,
   Plus,
-  Save
+  Save,
+  Pencil,
+  Trash2,
+  Info
 } from 'lucide-react';
+import SuccessModal from './SuccessModal';
+import ConfirmationModal from './ConfirmationModal';
 
 // Interfaces for this specific view
 interface RTData {
+  id?: string;
   no: string;
   ketua: string;
   phone: string;
@@ -23,6 +31,7 @@ interface RTData {
 }
 
 interface RWData {
+  id?: string;
   no: string;
   ketua: string;
   phone: string;
@@ -61,18 +70,59 @@ const generateRWData = (): RWData[] => {
 
 const PartnerRTRWSection: React.FC = () => {
   // Convert Mock Data to State
-  const [rwList, setRwList] = useState<RWData[]>(generateRWData());
+  const [rwList, setRwList] = useState<RWData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRW, setSelectedRW] = useState<RWData | null>(null);
   
+  // RT Detail State
+  const [viewingRT, setViewingRT] = useState<RTData | null>(null);
+
   // Add Modal State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditRWMode, setIsEditRWMode] = useState(false); // Track if we are editing RW
+  const [editingRWId, setEditingRWId] = useState<string | null>(null);
+
+  const [isAddRTModalOpen, setIsAddRTModalOpen] = useState(false); // Add RT Modal State
+  
+  // Success Modal State
+  const [successModal, setSuccessModal] = useState({
+    isOpen: false,
+    message: '',
+    title: 'Berhasil!'
+  });
+
+  // Confirmation Modal State
+  const [confirmationModal, setConfirmationModal] = useState({
+    isOpen: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+    variant: 'danger' as 'danger' | 'warning'
+  });
+
   const [newRWData, setNewRWData] = useState({
     no: '',
     ketua: '',
     phone: '',
     location: ''
   });
+  const [newRTData, setNewRTData] = useState({
+    no: '',
+    ketua: '',
+    phone: '',
+    kkCount: ''
+  });
+
+  // Fetch Data from API
+  useEffect(() => {
+    const fetchData = async () => {
+        const data = await apiService.getRTRW();
+        if (data) {
+            setRwList(data);
+        }
+    };
+    fetchData();
+  }, []);
 
   const filteredRW = useMemo(() => {
     return rwList.filter(rw => 
@@ -84,25 +134,192 @@ const PartnerRTRWSection: React.FC = () => {
   const totalRT = rwList.reduce((acc, curr) => acc + curr.rtList.length, 0);
   const totalKK = rwList.reduce((acc, curr) => acc + curr.rtList.reduce((rAcc, rCurr) => rAcc + rCurr.kkCount, 0), 0);
 
-  const handleSaveRW = (e: React.FormEvent) => {
+  const handleSaveRW = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newRWData.no || !newRWData.ketua) {
         alert("Mohon lengkapi Nomor RW dan Nama Ketua.");
         return;
     }
 
-    const newEntry: RWData = {
-        no: newRWData.no.padStart(2, '0'),
-        ketua: newRWData.ketua,
-        phone: newRWData.phone || '-',
-        location: newRWData.location || 'Lokasi belum diatur',
-        rtList: []
-    };
+    if (isEditRWMode && editingRWId) {
+        // Handle Update
+        const updatedEntry = {
+            no: newRWData.no.padStart(2, '0'),
+            ketua: newRWData.ketua,
+            phone: newRWData.phone || '-',
+            location: newRWData.location || 'Lokasi belum diatur'
+        };
 
-    setRwList(prev => [...prev, newEntry].sort((a, b) => a.no.localeCompare(b.no)));
+        // Optimistic Update
+        setRwList(prev => prev.map(rw => rw.id === editingRWId ? { ...rw, ...updatedEntry } : rw));
+        
+        // API Call
+        await apiService.updateRW(editingRWId, updatedEntry);
+
+        setSuccessModal({
+            isOpen: true,
+            message: 'Data RW berhasil diperbarui.',
+            title: 'RW Diperbarui'
+        });
+    } else {
+        // Handle Create
+        const newEntry: RWData = {
+            no: newRWData.no.padStart(2, '0'),
+            ketua: newRWData.ketua,
+            phone: newRWData.phone || '-',
+            location: newRWData.location || 'Lokasi belum diatur',
+            rtList: []
+        };
+
+        // Optimistic Update
+        setRwList(prev => [...prev, newEntry].sort((a, b) => a.no.localeCompare(b.no)));
+        
+        // API Call
+        await apiService.createRW({
+            id: `RW-${newEntry.no}`,
+            ...newEntry
+        });
+
+        // Create User Account for RW
+        const rwUser: User = {
+            id: `USR-RW-${newEntry.no}`,
+            username: `RW${newEntry.no}GS`,
+            password: '123456',
+            role: 'RW' as Role,
+            name: newEntry.ketua,
+            nik: '', 
+            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newEntry.ketua)}&background=random`
+        };
+        await apiService.createUser(rwUser);
+
+        setSuccessModal({
+            isOpen: true,
+            message: 'Data RW baru berhasil ditambahkan.',
+            title: 'RW Ditambahkan'
+        });
+    }
+
     setIsAddModalOpen(false);
     setNewRWData({ no: '', ketua: '', phone: '', location: '' });
-    alert("Data RW Berhasil Ditambahkan!");
+    setIsEditRWMode(false);
+    setEditingRWId(null);
+  };
+
+  const handleEditRW = (e: React.MouseEvent, rw: RWData) => {
+    e.stopPropagation();
+    setIsEditRWMode(true);
+    setEditingRWId(rw.id || `RW-${rw.no}`); // Fallback ID if missing
+    setNewRWData({
+        no: rw.no,
+        ketua: rw.ketua,
+        phone: rw.phone,
+        location: rw.location
+    });
+    setIsAddModalOpen(true);
+  };
+
+  const handleDeleteRW = (e: React.MouseEvent, rw: RWData) => {
+    e.stopPropagation();
+    setConfirmationModal({
+      isOpen: true,
+      title: `Hapus RW ${rw.no}?`,
+      message: `Apakah Anda yakin ingin menghapus data RW ${rw.no}? Tindakan ini juga akan menghapus semua data RT dan akun User terkait secara permanen.`,
+      variant: 'danger',
+      onConfirm: async () => {
+        // Optimistic Delete
+        setRwList(prev => prev.filter(item => item.no !== rw.no));
+        
+        await apiService.deleteRW(rw.id || `RW-${rw.no}`);
+        
+        setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+        setSuccessModal({
+            isOpen: true,
+            message: `Data RW ${rw.no} beserta RT terkait telah dihapus.`,
+            title: 'RW Dihapus'
+        });
+      }
+    });
+  };
+
+  const handleSaveRT = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRTData.no || !newRTData.ketua || !selectedRW) {
+        alert("Mohon lengkapi Nomor RT dan Nama Ketua.");
+        return;
+    }
+
+    const newEntry: RTData = {
+        id: `RT-${selectedRW.no}-${newRTData.no.padStart(3, '0')}`,
+        no: newRTData.no.padStart(3, '0'),
+        ketua: newRTData.ketua,
+        phone: newRTData.phone || '-',
+        kkCount: parseInt(newRTData.kkCount) || 0
+    };
+
+    // Optimistic Update
+    const updatedRW = { ...selectedRW, rtList: [...selectedRW.rtList, newEntry].sort((a, b) => a.no.localeCompare(b.no)) };
+    setRwList(prev => prev.map(rw => rw.no === selectedRW.no ? updatedRW : rw));
+    setSelectedRW(updatedRW);
+
+    // API Call
+    await apiService.createRT({
+        id: newEntry.id,
+        rwId: selectedRW.id || `RW-${selectedRW.no}`,
+        ...newEntry
+    });
+
+    // Create User Account for RT
+    // Username: RT(nomorRT-Nomor RW)GS -> e.g. RT05-02GS
+    // Ensure 2 digit formatting for consistency if user inputs "5"
+    const rtNoFormatted = parseInt(newEntry.no).toString().padStart(2, '0');
+    
+    const rtUser: User = {
+        id: `USR-RT-${selectedRW.no}-${newEntry.no}`,
+        username: `RT${rtNoFormatted}-${selectedRW.no}GS`,
+        password: '123456',
+        role: 'RT' as Role,
+        name: newEntry.ketua,
+        nik: '',
+        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(newEntry.ketua)}&background=random`
+    };
+    await apiService.createUser(rtUser);
+
+    setIsAddRTModalOpen(false);
+    setNewRTData({ no: '', ketua: '', phone: '', kkCount: '' });
+    setSuccessModal({
+        isOpen: true,
+        message: 'Data RT baru berhasil ditambahkan.',
+        title: 'RT Ditambahkan'
+    });
+  };
+  
+  const handleDeleteRT = (rt: RTData) => {
+      if (!selectedRW) return;
+      
+      setConfirmationModal({
+        isOpen: true,
+        title: `Hapus RT ${rt.no}?`,
+        message: `Apakah Anda yakin ingin menghapus data RT ${rt.no} dari RW ${selectedRW.no}? Akun User RT ini juga akan dihapus.`,
+        variant: 'danger',
+        onConfirm: async () => {
+          // Optimistic
+          const updatedRTList = selectedRW.rtList.filter(r => r.no !== rt.no);
+          const updatedRW = { ...selectedRW, rtList: updatedRTList };
+          setSelectedRW(updatedRW);
+          setRwList(prev => prev.map(rw => rw.no === selectedRW.no ? updatedRW : rw));
+          
+          if (viewingRT?.no === rt.no) setViewingRT(null);
+
+          await apiService.deleteRT(rt.id || `RT-${selectedRW.no}-${rt.no}`);
+          
+          setConfirmationModal(prev => ({ ...prev, isOpen: false }));
+          setSuccessModal({
+            isOpen: true,
+            message: `RT ${rt.no} berhasil dihapus.`,
+            title: 'RT Dihapus'
+          });
+        }
+      });
   };
 
   return (
@@ -166,6 +383,22 @@ const PartnerRTRWSection: React.FC = () => {
             >
                <div className="absolute top-0 right-0 w-24 h-24 bg-orange-50 rounded-bl-full -mr-4 -mt-4 transition-transform group-hover:scale-110"></div>
                
+               {/* Edit/Delete Actions */}
+               <div className="absolute top-4 right-4 flex gap-1 z-20 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button 
+                    onClick={(e) => handleEditRW(e, rw)}
+                    className="p-2 bg-white text-slate-400 hover:text-blue-600 rounded-full shadow-sm border border-slate-100 hover:border-blue-200 transition-colors"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button 
+                    onClick={(e) => handleDeleteRW(e, rw)}
+                    className="p-2 bg-white text-slate-400 hover:text-red-600 rounded-full shadow-sm border border-slate-100 hover:border-red-200 transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+               </div>
+
                <div className="relative z-10">
                   <div className="w-14 h-14 bg-slate-900 text-white rounded-2xl flex items-center justify-center text-xl font-black mb-4 shadow-lg">
                      {rw.no}
@@ -225,14 +458,21 @@ const PartnerRTRWSection: React.FC = () => {
                     <h3 className="font-bold text-slate-800 flex items-center gap-2">
                         <Building2 size={20} className="text-blue-500" /> Daftar Rukun Tetangga (RT)
                     </h3>
-                    <button className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
+                    <button 
+                        onClick={() => setIsAddRTModalOpen(true)}
+                        className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1"
+                    >
                         <Plus size={14} /> Tambah RT
                     </button>
                  </div>
                  
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {selectedRW.rtList.map((rt) => (
-                       <div key={rt.no} className="p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-md transition-all flex items-center gap-4 group bg-slate-50/50 hover:bg-white">
+                       <div 
+                         key={rt.no} 
+                         onClick={() => setViewingRT(rt)}
+                         className="p-4 rounded-2xl border border-slate-100 hover:border-blue-200 hover:shadow-md transition-all flex items-center gap-4 group bg-slate-50/50 hover:bg-white cursor-pointer"
+                       >
                           <div className="w-12 h-12 bg-white border-2 border-slate-100 text-slate-700 rounded-2xl flex items-center justify-center text-sm font-black shrink-0 group-hover:border-blue-200 group-hover:text-blue-600 transition-colors">
                              {rt.no}
                           </div>
@@ -272,12 +512,158 @@ const PartnerRTRWSection: React.FC = () => {
         </div>
       )}
 
+      {/* RT Detail Modal */}
+      {viewingRT && selectedRW && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl animate-in zoom-in-95 overflow-hidden">
+              <div className="p-6 bg-slate-50 border-b border-slate-100 flex justify-between items-center">
+                 <div>
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Detail Wilayah</p>
+                    <h3 className="text-xl font-black text-slate-800">RT {viewingRT.no} / RW {selectedRW.no}</h3>
+                 </div>
+                 <button onClick={() => setViewingRT(null)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-full transition-all">
+                    <X size={20} />
+                 </button>
+              </div>
+              
+              <div className="p-6 space-y-6">
+                 <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
+                        <UserCircle size={32} />
+                    </div>
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase">Ketua RT</p>
+                        <h4 className="text-lg font-bold text-slate-800">{viewingRT.ketua}</h4>
+                        <div className="flex items-center gap-2 mt-1">
+                             <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-bold border border-slate-200">
+                                {viewingRT.phone}
+                             </span>
+                        </div>
+                    </div>
+                 </div>
+
+                 <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Jumlah KK</p>
+                        <p className="text-2xl font-black text-slate-800">{viewingRT.kkCount}</p>
+                    </div>
+                    <div className="p-4 bg-slate-50 rounded-2xl border border-slate-100">
+                        <p className="text-xs font-bold text-slate-400 uppercase mb-1">Kode Wilayah</p>
+                        <p className="text-sm font-mono font-bold text-slate-600 break-all">{viewingRT.id || '-'}</p>
+                    </div>
+                 </div>
+
+                 <div className="pt-2">
+                    <button 
+                        onClick={() => handleDeleteRT(viewingRT)}
+                        className="w-full py-3 border-2 border-red-100 text-red-600 font-bold rounded-xl hover:bg-red-50 transition-all flex items-center justify-center gap-2"
+                    >
+                        <Trash2 size={16} /> Hapus Data RT
+                    </button>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Add New RT Modal */}
+      {isAddRTModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+           <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl animate-in zoom-in-95">
+              <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem]">
+                 <h3 className="font-bold text-slate-800">Tambah RT (RW {selectedRW?.no})</h3>
+                 <button onClick={() => setIsAddRTModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-full transition-all">
+                    <X size={20} />
+                 </button>
+              </div>
+              
+              <form onSubmit={handleSaveRT} className="p-6 space-y-4">
+                 <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 ml-1">Nomor RT</label>
+                    <input 
+                        type="text" 
+                        placeholder="Contoh: 005" 
+                        value={newRTData.no}
+                        onChange={(e) => setNewRTData({...newRTData, no: e.target.value})}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 ml-1">Nama Ketua RT</label>
+                    <input 
+                        type="text" 
+                        placeholder="Nama Lengkap Ketua" 
+                        value={newRTData.ketua}
+                        onChange={(e) => setNewRTData({...newRTData, ketua: e.target.value})}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 ml-1">Nomor Telepon</label>
+                    <input 
+                        type="text" 
+                        placeholder="0812xxxx" 
+                        value={newRTData.phone}
+                        onChange={(e) => setNewRTData({...newRTData, phone: e.target.value})}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                 </div>
+                 <div className="space-y-1">
+                    <label className="text-xs font-bold text-slate-500 ml-1">Jumlah Kepala Keluarga (KK)</label>
+                    <input 
+                        type="number" 
+                        placeholder="Jumlah KK..." 
+                        value={newRTData.kkCount}
+                        onChange={(e) => setNewRTData({...newRTData, kkCount: e.target.value})}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                 </div>
+
+                 <div className="pt-4 flex gap-3">
+                    <button 
+                        type="button" 
+                        onClick={() => setIsAddRTModalOpen(false)}
+                        className="flex-1 py-3 bg-slate-100 text-slate-500 font-bold rounded-xl hover:bg-slate-200 transition-all text-sm"
+                    >
+                        Batal
+                    </button>
+                    <button 
+                        type="submit"
+                        className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg transition-all text-sm flex items-center justify-center gap-2"
+                    >
+                        <Save size={16} /> Simpan
+                    </button>
+                 </div>
+              </form>
+           </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      <SuccessModal 
+        isOpen={successModal.isOpen}
+        onClose={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
+        message={successModal.message}
+        title={successModal.title}
+      />
+
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmationModal.isOpen}
+        onClose={() => setConfirmationModal(prev => ({ ...prev, isOpen: false }))}
+        onConfirm={confirmationModal.onConfirm}
+        title={confirmationModal.title}
+        message={confirmationModal.message}
+        variant={confirmationModal.variant}
+        confirmLabel="Ya, Hapus"
+      />
+
       {/* Add New RW Modal */}
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
            <div className="bg-white w-full max-w-md rounded-[2rem] shadow-2xl animate-in zoom-in-95">
               <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-[2rem]">
-                 <h3 className="font-bold text-slate-800">Tambah Data RW</h3>
+                 <h3 className="font-bold text-slate-800">{isEditRWMode ? 'Edit Data RW' : 'Tambah Data RW'}</h3>
                  <button onClick={() => setIsAddModalOpen(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-white rounded-full transition-all">
                     <X size={20} />
                  </button>

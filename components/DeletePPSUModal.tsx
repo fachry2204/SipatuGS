@@ -1,34 +1,24 @@
 
 import React, { useState } from 'react';
-import { X, AlertTriangle, ShieldCheck, Lock, Mail } from 'lucide-react';
-import { User, Role } from '../types';
-import { apiService } from '../services/api';
+import { AlertTriangle, ShieldCheck, Lock } from 'lucide-react';
+import { PPSU, User } from '../types';
 
-interface DeleteUserModalProps {
-  userToDelete: User;
-  users: User[]; // Need access to all users to verify credentials
+interface DeletePPSUModalProps {
+  staff: PPSU;
   onClose: () => void;
-  onConfirm: (id: string) => void;
+  onConfirm: () => void;
+  user: User;
 }
 
-const DeleteUserModal: React.FC<DeleteUserModalProps> = ({ userToDelete, users, onClose, onConfirm }) => {
+const DeletePPSUModal: React.FC<DeletePPSUModalProps> = ({ staff, onClose, onConfirm, user }) => {
   const [isDeleting, setIsDeleting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleDelete = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     setIsDeleting(true);
-
-    try {
-      // Direct Delete without Authorization
-      onConfirm(userToDelete.id);
-      onClose();
-    } catch (err) {
-      console.error("Delete error:", err);
-      setError('Terjadi kesalahan saat menghapus user.');
-      setIsDeleting(false);
-    }
+    // Direct Delete without Authorization
+    onConfirm();
+    // onClose(); // Parent handles close
   };
 
   return (
@@ -39,31 +29,23 @@ const DeleteUserModal: React.FC<DeleteUserModalProps> = ({ userToDelete, users, 
             <AlertTriangle size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-red-900">Konfirmasi Hapus User</h3>
-            <p className="text-xs text-red-700 font-medium">Tindakan ini tidak dapat dibatalkan.</p>
+            <h3 className="font-bold text-red-900">Konfirmasi Hapus PPSU</h3>
+            <p className="text-xs text-red-700 font-medium">Tindakan ini permanen dan tidak dapat dibatalkan.</p>
           </div>
         </div>
 
         <div className="p-6">
           <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100 flex items-center gap-3">
-             <img src={userToDelete.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
+             <img src={staff.fotoProfile} alt="" className="w-10 h-10 rounded-full object-cover" />
              <div>
-               <p className="text-xs text-slate-500 font-medium">Menghapus Akun:</p>
-               <p className="text-sm font-bold text-slate-800">{userToDelete.username}</p>
-               <p className="text-[10px] text-slate-400">{userToDelete.role}</p>
+               <p className="text-xs text-slate-500 font-medium">Menghapus Data:</p>
+               <p className="text-sm font-bold text-slate-800">{staff.namaLengkap} ({staff.nomorAnggota})</p>
              </div>
           </div>
           
           <div className="mb-4 text-xs text-slate-500 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-             Apakah Anda yakin ingin menghapus user ini secara permanen?
+             Apakah Anda yakin ingin menghapus data PPSU ini secara permanen?
           </div>
-
-          {error && (
-            <div className="mb-4 text-xs text-red-600 font-bold bg-red-50 p-3 rounded-lg flex items-start gap-2">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
 
           <form onSubmit={handleDelete} className="space-y-4">
             <div className="pt-4 flex gap-3">
@@ -79,7 +61,7 @@ const DeleteUserModal: React.FC<DeleteUserModalProps> = ({ userToDelete, users, 
                 disabled={isDeleting}
                 className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-lg shadow-red-100 transition-all flex items-center justify-center"
               >
-                {isDeleting ? 'Memproses...' : 'Ya, Hapus User'}
+                {isDeleting ? 'Memproses...' : 'Ya, Hapus Data'}
               </button>
             </div>
           </form>
@@ -89,4 +71,4 @@ const DeleteUserModal: React.FC<DeleteUserModalProps> = ({ userToDelete, users, 
   );
 };
 
-export default DeleteUserModal;
+export default DeletePPSUModal;

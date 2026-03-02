@@ -20,8 +20,7 @@ import {
   Timer
 } from 'lucide-react';
 import L from 'leaflet';
-import { Report, ReportStatus, DutyStatus } from '../types';
-import { MOCK_STAFF } from '../constants';
+import { Report, ReportStatus, DutyStatus, Staff } from '../types';
 
 // Component for Real-time Elapsed Timer
 const LiveTimer: React.FC<{ startTime: string }> = ({ startTime }) => {
@@ -65,19 +64,20 @@ const LiveTimer: React.FC<{ startTime: string }> = ({ startTime }) => {
 
 interface ReportDetailModalProps {
   report: Report;
+  staffList: Staff[];
   onClose: () => void;
   onAction: (report: Report, role: 'Admin' | 'PPSU') => void; // Trigger action modal
   onDelete?: () => void; // Optional delete callback
 }
 
-const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, onClose, onAction, onDelete }) => {
+const ReportDetailModal: React.FC<ReportDetailModalProps> = ({ report, staffList, onClose, onAction, onDelete }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const [zoomedImage, setZoomedImage] = useState<string | null>(null);
 
   // Get Assigned Staff Details
   const assignedStaff = report.assignedStaffIds 
-    ? MOCK_STAFF.filter(staff => report.assignedStaffIds?.includes(staff.id))
+    ? staffList.filter(staff => report.assignedStaffIds?.includes(staff.id))
     : [];
 
   // Initialize Map

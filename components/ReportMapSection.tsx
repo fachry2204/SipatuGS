@@ -424,6 +424,7 @@ const ReportMapSection: React.FC<ReportMapSectionProps> = ({ reports, setReports
         {detailReport && (
             <ReportDetailModal 
                 report={detailReport}
+                staffList={staffList}
                 onClose={() => setDetailReport(null)}
                 onAction={handleDetailAction}
             />

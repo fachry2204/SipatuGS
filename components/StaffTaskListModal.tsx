@@ -1,14 +1,14 @@
 
 import React, { useState } from 'react';
 import { X, Calendar, MapPin, CheckCircle2, ArrowRight, Clock, AlertCircle, Activity, PlayCircle, RotateCcw } from 'lucide-react';
-import { Staff, Report, ReportStatus, DutyStatus } from '../types';
+import { PPSU, Report, ReportStatus, DutyStatus } from '../types';
 import ReportActionModal from './ReportActionModal';
 
 interface StaffTaskListModalProps {
-  staff: Staff;
+  staff: PPSU;
   reports: Report[];
   onClose: () => void;
-  onUpdateReport: (updatedReport: Report, staffUpdates?: Staff[]) => void;
+  onUpdateReport: (updatedReport: Report, staffUpdates?: PPSU[]) => void;
 }
 
 const StaffTaskListModal: React.FC<StaffTaskListModalProps> = ({ staff, reports, onClose, onUpdateReport }) => {
@@ -38,7 +38,7 @@ const StaffTaskListModal: React.FC<StaffTaskListModalProps> = ({ staff, reports,
     setActionReport(report);
   };
 
-  const handleUpdateFromAction = (updatedReport: Report, staffUpdates?: Staff[]) => {
+  const handleUpdateFromAction = (updatedReport: Report, staffUpdates?: PPSU[]) => {
     onUpdateReport(updatedReport, staffUpdates);
   };
 

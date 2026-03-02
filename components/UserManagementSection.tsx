@@ -26,9 +26,11 @@ import {
   UsersRound,
   MoreHorizontal
 } from 'lucide-react';
-import { MOCK_STAFF } from '../constants';
 import { User, Role } from '../types';
+import { apiService } from '../services/api';
 import AdminVerificationModal from './AdminVerificationModal';
+import DeleteUserModal from './DeleteUserModal';
+import SuccessModal from './SuccessModal';
 
 const ROLES: Role[] = [
   'Administrator', 
@@ -68,6 +70,7 @@ const UserManagementSection: React.FC<UserManagementSectionProps> = ({ users, se
   
   // Verification State
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -85,6 +88,20 @@ const UserManagementSection: React.FC<UserManagementSectionProps> = ({ users, se
     password: '',
     role: 'Warga' as Role
   });
+
+  // Success Modal State
+  const [successModal, setSuccessModal] = useState({
+    isOpen: false,
+    message: '',
+    title: 'Berhasil!'
+  });
+
+  // Logic Update: Auto-sync Username with NIK if Role is Warga
+   useEffect(() => {
+     if (formData.role === 'Warga' && formData.username !== formData.nik) {
+         setFormData(prev => ({ ...prev, username: prev.nik }));
+     }
+   }, [formData.role, formData.nik, formData.username]);
 
   // Sync activeTab if initialTab changes (e.g. navigation from menu)
   useEffect(() => {
@@ -160,7 +177,10 @@ const UserManagementSection: React.FC<UserManagementSectionProps> = ({ users, se
   };
 
   const handleResetPasswordClick = (user: User) => {
-    if (!user.nik) {
+    // List of roles that do NOT require NIK for password reset and use default '123456'
+    const rolesWithDefaultPassword = ['RT', 'RW', 'LMK', 'FKDM', 'Staff Kelurahan', 'Pimpinan', 'Karang Taruna'];
+    
+    if (!rolesWithDefaultPassword.includes(user.role) && !user.nik) {
       alert("Gagal: User ini tidak memiliki NIK. Password tidak dapat direset menggunakan NIK.");
       return;
     }
@@ -168,35 +188,66 @@ const UserManagementSection: React.FC<UserManagementSectionProps> = ({ users, se
   };
 
   const handleDeleteClick = (user: User) => {
-    setPendingAction({ type: 'Delete', user });
+    setUserToDelete(user);
   };
 
-  const onVerificationSuccess = () => {
+  const onVerificationSuccess = async () => {
     if (!pendingAction) return;
     const { type, user } = pendingAction;
     setPendingAction(null);
 
-    if (type === 'Reset Password') {
-      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, password: user.nik } : u));
-      alert(`Berhasil! Password untuk ${user.username} telah direset menjadi NIK (${user.nik}).`);
-    } else if (type === 'Delete') {
-      setUsers(prev => prev.filter(u => u.id !== user.id));
-      alert(`Berhasil! User ${user.username} telah dihapus dari sistem.`);
-    } else if (type === 'Edit') {
-      setEditingUser(user);
-      setFormData({ 
-        name: user.name || '',
-        username: user.username, 
-        email: user.email || '',
-        nik: user.nik || '', 
-        password: '', 
-        role: user.role 
-      });
-      setIsFormModalOpen(true);
+    try {
+      if (type === 'Reset Password') {
+        // List of roles that use '123456' as default reset password
+        const rolesWithDefaultPassword = ['RT', 'RW', 'LMK', 'FKDM', 'Staff Kelurahan', 'Pimpinan', 'Karang Taruna'];
+        
+        let newPassword = user.nik || user.username;
+        if (rolesWithDefaultPassword.includes(user.role)) {
+            newPassword = '123456';
+        }
+
+        const updatedUser = { ...user, password: newPassword };
+        await apiService.updateUser(updatedUser);
+        const freshUsers = await apiService.getUsers();
+        if (freshUsers) setUsers(freshUsers);
+        
+        const resetMessage = rolesWithDefaultPassword.includes(user.role) 
+            ? `Berhasil! Password untuk ${user.username} telah direset menjadi '123456'.`
+            : `Berhasil! Password untuk ${user.username} telah direset menjadi NIK/Username.`;
+            
+        setSuccessModal({
+          isOpen: true,
+          message: resetMessage,
+          title: 'Password Direset'
+        });
+      } else if (type === 'Delete') {
+        await apiService.deleteUser(user.id);
+        const freshUsers = await apiService.getUsers();
+        if (freshUsers) setUsers(freshUsers);
+        setSuccessModal({
+          isOpen: true,
+          message: `Berhasil! User ${user.username} telah dihapus dari sistem.`,
+          title: 'User Dihapus'
+        });
+      } else if (type === 'Edit') {
+        setEditingUser(user);
+        setFormData({ 
+          name: user.name || '',
+          username: user.username, 
+          email: user.email || '',
+          nik: user.nik || '', 
+          password: '', 
+          role: user.role 
+        });
+        setIsFormModalOpen(true);
+      }
+    } catch (error) {
+      console.error("Operation failed:", error);
+      alert("Gagal melakukan operasi. Silakan coba lagi.");
     }
   };
 
-  const handleSubmitUserForm = (e: React.FormEvent) => {
+  const handleSubmitUserForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.username && !formData.nik) {
         alert("Mohon isi Username atau NIK sebagai identitas login.");
@@ -204,41 +255,75 @@ const UserManagementSection: React.FC<UserManagementSectionProps> = ({ users, se
     }
     const nameToUse = formData.name || formData.username;
 
-    if (editingUser) {
-      setUsers(prev => prev.map(u => {
-        if (u.id === editingUser.id) {
-          const updatedUser = {
-            ...u,
-            name: formData.name,
-            username: formData.username,
-            email: formData.email || undefined,
-            nik: formData.nik,
-            role: formData.role,
-            avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=random`
-          };
-          if (formData.password && formData.password.trim() !== '') {
-            updatedUser.password = formData.password;
-          }
-          return updatedUser;
+    try {
+      if (editingUser) {
+        const updatedUser: User = {
+          ...editingUser,
+          name: formData.name,
+          username: formData.username,
+          email: formData.email || undefined,
+          nik: formData.nik,
+          role: formData.role,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=random`
+        };
+        
+        if (formData.password && formData.password.trim() !== '') {
+          updatedUser.password = formData.password;
         }
-        return u;
-      }));
-      alert('Data user berhasil diperbarui.');
-    } else {
-      const newUser: User = {
-        id: `USR-${Date.now()}`,
-        name: formData.name,
-        username: formData.username,
-        email: formData.email || undefined,
-        nik: formData.nik,
-        role: formData.role,
-        avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=random`,
-        password: formData.password
-      };
-      setUsers(prev => [...prev, newUser]);
-      alert('User baru berhasil ditambahkan.');
+
+        await apiService.updateUser(updatedUser);
+        setSuccessModal({
+          isOpen: true,
+          message: 'Data user berhasil diperbarui.',
+          title: 'Berhasil Disimpan'
+        });
+      } else {
+        const newUser: User = {
+          id: `USR-${Date.now()}`,
+          name: formData.name,
+          username: formData.username,
+          email: formData.email || undefined,
+          nik: formData.nik,
+          role: formData.role,
+          avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(nameToUse)}&background=random`,
+          password: formData.password
+        };
+        await apiService.createUser(newUser);
+        setSuccessModal({
+          isOpen: true,
+          message: 'User baru berhasil ditambahkan.',
+          title: 'User Ditambahkan'
+        });
+      }
+
+      // Refresh data
+      const freshUsers = await apiService.getUsers();
+      if (freshUsers) setUsers(freshUsers);
+      setIsFormModalOpen(false);
+      
+    } catch (error) {
+      console.error("Save failed:", error);
+      alert("Gagal menyimpan data user.");
     }
-    setIsFormModalOpen(false);
+  };
+
+  const handleConfirmDelete = async (id: string) => {
+    if (!userToDelete) return;
+    
+    try {
+        await apiService.deleteUser(id);
+        const freshUsers = await apiService.getUsers();
+        if (freshUsers) setUsers(freshUsers);
+        setSuccessModal({
+          isOpen: true,
+          message: `Berhasil! User ${userToDelete.username} telah dihapus dari sistem.`,
+          title: 'User Dihapus'
+        });
+        setUserToDelete(null);
+    } catch (error) {
+        console.error("Delete failed:", error);
+        alert("Gagal menghapus user.");
+    }
   };
 
   const tabs: {id: CategoryTab, label: string, icon: any}[] = [
@@ -489,10 +574,12 @@ const UserManagementSection: React.FC<UserManagementSectionProps> = ({ users, se
                     type="text" 
                     required={!formData.nik} 
                     value={formData.username}
+                    readOnly={formData.role === 'Warga'}
                     onChange={(e) => setFormData({...formData, username: e.target.value})}
                     placeholder="Contoh: nina_staff"
-                    className="w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold focus:border-indigo-500 outline-none transition-all"
+                    className={`w-full pl-12 pr-4 py-3.5 bg-slate-50 border-2 border-slate-100 rounded-2xl text-sm font-bold focus:border-indigo-500 outline-none transition-all ${formData.role === 'Warga' ? 'opacity-70 cursor-not-allowed text-slate-500' : ''}`}
                   />
+                  {formData.role === 'Warga' && <p className="text-[10px] text-orange-500 font-bold mt-1 ml-1">*Username Warga otomatis menggunakan NIK</p>}
                 </div>
               </div>
 
@@ -573,16 +660,32 @@ const UserManagementSection: React.FC<UserManagementSectionProps> = ({ users, se
         </div>
       )}
 
-      {pendingAction && (
-        <AdminVerificationModal 
-          isOpen={!!pendingAction}
-          onClose={() => setPendingAction(null)}
-          onSuccess={onVerificationSuccess}
+      {/* Delete User Modal */}
+      {userToDelete && (
+        <DeleteUserModal
+          userToDelete={userToDelete}
           users={users}
-          actionType={pendingAction.type}
-          targetUserName={pendingAction.user.username}
+          onClose={() => setUserToDelete(null)}
+          onConfirm={handleConfirmDelete}
         />
       )}
+
+      {/* Admin Verification Modal (Edit/Reset Password) */}
+      <AdminVerificationModal 
+        isOpen={!!pendingAction}
+        onClose={() => setPendingAction(null)}
+        onSuccess={onVerificationSuccess}
+        users={users}
+        actionType={pendingAction?.type || 'Edit'}
+        targetUserName={pendingAction?.user.username || ''}
+      />
+      {/* Success Modal */}
+      <SuccessModal 
+        isOpen={successModal.isOpen}
+        onClose={() => setSuccessModal(prev => ({ ...prev, isOpen: false }))}
+        message={successModal.message}
+        title={successModal.title}
+      />
     </div>
   );
 };

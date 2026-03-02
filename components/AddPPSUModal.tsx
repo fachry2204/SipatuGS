@@ -1,25 +1,23 @@
 
 import React, { useState, ChangeEvent } from 'react';
 import { X, Camera, MapPin, Save } from 'lucide-react';
-import { Staff, Gender, DutyStatus } from '../types';
+import { PPSU, Gender, DutyStatus } from '../types';
 
-interface AddStaffModalProps {
+interface AddPPSUModalProps {
   onClose: () => void;
-  staff?: Staff | null;
-  onSave: (staff: Staff) => void;
+  staff?: PPSU | null;
+  onSave: (staff: PPSU) => void;
 }
 
-const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, staff, onSave }) => {
+const AddPPSUModal: React.FC<AddPPSUModalProps> = ({ onClose, staff, onSave }) => {
   const isEditMode = !!staff;
 
   // Initial State based on staff prop or empty defaults
-  const [formData, setFormData] = useState<Staff>({
+  const [formData, setFormData] = useState<PPSU>({
     id: staff?.id || Date.now().toString(), // Generate simplified ID for new
     nik: staff?.nik || '',
     nomorAnggota: staff?.nomorAnggota || '',
     namaLengkap: staff?.namaLengkap || '',
-    tempatLahir: staff?.tempatLahir || '',
-    tanggalLahir: staff?.tanggalLahir || '',
     jenisKelamin: staff?.jenisKelamin || Gender.MALE,
     alamatLengkap: staff?.alamatLengkap || '',
     latitude: staff?.latitude || -6.2297,
@@ -90,7 +88,6 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, staff, onSave })
               <div className="w-full md:w-1/3 space-y-4">
                 <div className="aspect-square w-full max-w-[240px] mx-auto bg-slate-50 border-2 border-dashed border-slate-200 rounded-3xl flex flex-col items-center justify-center gap-3 relative overflow-hidden group cursor-pointer hover:bg-slate-100 transition-colors">
                   {formData.fotoProfile ? (
-                    /* FIX: Changed object-cover to object-contain and added bg-white */
                     <img src={formData.fotoProfile} alt="Preview" className="w-full h-full object-contain bg-white" />
                   ) : (
                     <>
@@ -142,27 +139,6 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, staff, onSave })
                     value={formData.namaLengkap}
                     onChange={handleChange}
                     placeholder="Masukkan nama sesuai identitas" 
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 ml-1">Tempat Lahir</label>
-                  <input 
-                    type="text" 
-                    name="tempatLahir"
-                    value={formData.tempatLahir}
-                    onChange={handleChange}
-                    placeholder="Kota Kelahiran" 
-                    className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" 
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 ml-1">Tanggal Lahir</label>
-                  <input 
-                    type="date" 
-                    name="tanggalLahir"
-                    value={formData.tanggalLahir}
-                    onChange={handleChange}
                     className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-orange-500 outline-none" 
                   />
                 </div>
@@ -250,4 +226,4 @@ const AddStaffModal: React.FC<AddStaffModalProps> = ({ onClose, staff, onSave })
   );
 };
 
-export default AddStaffModal;
+export default AddPPSUModal;

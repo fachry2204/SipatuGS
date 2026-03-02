@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { X, ShieldCheck, Lock, UserCircle, AlertTriangle } from 'lucide-react';
 import { User } from '../types';
+import { apiService } from '../services/api';
 
 interface AdminVerificationModalProps {
   isOpen: boolean;
@@ -27,13 +28,19 @@ const AdminVerificationModal: React.FC<AdminVerificationModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsVerifying(true);
 
-    // Simulate network delay
-    setTimeout(() => {
+    // If action is Delete, skip auth
+    if (actionType === 'Delete') {
+        onSuccess();
+        setIsVerifying(false);
+        return;
+    }
+
+    try {
       // 1. Find User by Username, Email, OR NIK
       const adminUser = users.find(u => 
         u.username.toLowerCase() === identifier.toLowerCase() || 
@@ -56,17 +63,30 @@ const AdminVerificationModal: React.FC<AdminVerificationModalProps> = ({
         return;
       }
 
-      // 4. Validate Password
-      if (adminUser.password !== password) {
-        setError('Password salah.');
+      // 4. Validate Password via API
+      const response = await apiService.login(identifier, password);
+      
+      if (response.error) {
+        setError(response.error);
         setIsVerifying(false);
         return;
+      }
+
+      // 5. Double Check Role from Server Response (Optional but safe)
+      if (response.role && !allowedRoles.includes(response.role)) {
+         setError(`Role '${response.role}' tidak memiliki izin.`);
+         setIsVerifying(false);
+         return;
       }
 
       // Success
       setIsVerifying(false);
       onSuccess();
-    }, 800);
+    } catch (err) {
+      console.error("Verification error:", err);
+      setError('Terjadi kesalahan saat verifikasi.');
+      setIsVerifying(false);
+    }
   };
 
   const getColorTheme = () => {
@@ -79,6 +99,52 @@ const AdminVerificationModal: React.FC<AdminVerificationModalProps> = ({
   };
 
   const color = getColorTheme();
+
+  if (actionType === 'Delete') {
+    return (
+      <div className={`fixed inset-0 z-[130] flex items-center justify-center p-4 bg-red-900/40 backdrop-blur-md animate-in fade-in duration-200`}>
+        <div className="bg-white w-full max-w-md rounded-3xl overflow-hidden shadow-2xl animate-in slide-in-from-bottom-8 duration-300">
+          <div className="p-6 bg-red-50 flex items-center gap-4 border-b border-red-100">
+            <div className="w-12 h-12 bg-red-100 text-red-600 rounded-2xl flex items-center justify-center shrink-0">
+              <AlertTriangle size={24} />
+            </div>
+            <div>
+              <h3 className="font-bold text-red-900">Konfirmasi Hapus</h3>
+              <p className="text-xs text-red-700 font-medium">Tindakan ini tidak dapat dibatalkan.</p>
+            </div>
+          </div>
+
+          <div className="p-6">
+            <div className="mb-6 p-4 bg-slate-50 rounded-2xl border border-slate-100">
+               <p className="text-xs text-slate-500 font-medium mb-1">Menghapus:</p>
+               <div className="flex items-center gap-2">
+                 <span className="font-bold text-slate-800">{targetUserName}</span>
+               </div>
+            </div>
+            
+            <div className="mb-4 text-xs text-slate-500 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
+               Apakah Anda yakin ingin menghapus data ini secara permanen?
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button 
+                onClick={onClose}
+                className="flex-1 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-xl transition-all"
+              >
+                Batalkan
+              </button>
+              <button 
+                onClick={handleSubmit}
+                className="flex-1 py-3 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-xl shadow-lg shadow-red-100 transition-all"
+              >
+                Ya, Hapus
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`fixed inset-0 z-[130] flex items-center justify-center p-4 bg-${color}-900/40 backdrop-blur-md animate-in fade-in duration-200`}>

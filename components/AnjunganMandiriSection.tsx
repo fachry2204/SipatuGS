@@ -643,7 +643,7 @@ const AnjunganMandiriSection: React.FC<AnjunganMandiriSectionProps> = ({ setting
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm"></div>
         
         {/* Top Bar info */}
-        <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-10">
+        <div className="absolute top-0 left-0 w-full p-6 flex justify-between items-start z-[200]">
            <div className="bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 text-white flex items-center gap-4 shadow-lg">
               <img src={settings.logo || ''} alt="Logo" className="w-12 h-12 object-contain" />
               <div>
@@ -658,13 +658,12 @@ const AnjunganMandiriSection: React.FC<AnjunganMandiriSectionProps> = ({ setting
                 {new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
              </div>
 
-             {/* Exit Button */}
              <button 
                 onClick={onExit}
-                className="bg-white/10 hover:bg-red-600/80 backdrop-blur-md p-3 rounded-2xl border border-white/20 text-white transition-all shadow-lg group"
+                className="bg-red-600/90 hover:bg-red-700 backdrop-blur-md p-3 rounded-2xl border border-white/20 text-white transition-all shadow-lg group"
                 title="Keluar / Tampilkan Menu"
              >
-                <LogOut size={24} />
+                <XCircle size={24} />
              </button>
            </div>
         </div>

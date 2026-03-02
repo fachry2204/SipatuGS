@@ -6,7 +6,6 @@ import {
   FileText, 
   Clock, 
   CheckCircle2, 
-  XCircle, 
   Eye, 
   Filter,
   AlertCircle,
@@ -23,6 +22,7 @@ import {
   FileSearch // Added FileSearch icon
 } from 'lucide-react';
 import { ServiceRequest, ServiceStatus, Citizen, User } from '../types';
+import { apiService } from '../services/api';
 import AddServiceModal from './AddServiceModal';
 import ServiceDetailModal from './ServiceDetailModal';
 import AdminVerificationModal from './AdminVerificationModal';
@@ -115,14 +115,20 @@ const ServiceListSection: React.FC<ServiceListSectionProps> = ({ requests, setRe
   const totalPages = Math.ceil(filteredData.length / itemsPerPage);
   const currentData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-  const handleAddRequest = (newRequest: ServiceRequest) => {
-    if (editingRequest) {
-        setRequests(prev => prev.map(r => r.id === newRequest.id ? newRequest : r));
-    } else {
-        setRequests(prev => [newRequest, ...prev]);
+  const handleAddRequest = async (newRequest: ServiceRequest) => {
+    try {
+      if (editingRequest) {
+        await apiService.updateService(newRequest);
+      } else {
+        await apiService.createService(newRequest);
+      }
+      const fresh = await apiService.getServices();
+      if (fresh) setRequests(fresh);
+      setIsAddModalOpen(false);
+      setEditingRequest(null);
+    } catch {
+      alert('Gagal menyimpan permohonan ke server.');
     }
-    setIsAddModalOpen(false);
-    setEditingRequest(null);
   };
 
   const handleDeleteSuccess = () => {
@@ -295,7 +301,7 @@ const ServiceListSection: React.FC<ServiceListSectionProps> = ({ requests, setRe
                             </td>
                             <td className="px-6 py-4">
                                 <span className="text-[10px] text-slate-500 flex items-center gap-1 font-bold">
-                                    <Calendar size={10}/> {new Date(req.requestDate).toLocaleDateString('id-ID', { dateStyle: 'medium' })}
+                                    <Calendar size={10}/> {req.requestDate && !isNaN(new Date(req.requestDate).getTime()) ? new Date(req.requestDate).toLocaleDateString('id-ID', { dateStyle: 'medium' }) : '-'}
                                 </span>
                             </td>
                             <td className="px-6 py-4">
@@ -322,14 +328,24 @@ const ServiceListSection: React.FC<ServiceListSectionProps> = ({ requests, setRe
                                 <div className="flex items-center justify-end gap-1.5">
                                     {!isWargaView ? (
                                         <>
-                                            <a 
-                                                href={`https://wa.me/${req.applicantPhone.replace(/\D/g,'')}`} 
-                                                target="_blank"
-                                                className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all shadow-sm"
-                                                title="Hubungi WhatsApp"
-                                            >
-                                                <MessageCircle size={16} />
-                                            </a>
+                                            {req.applicantPhone ? (
+                                                <a 
+                                                    href={`https://wa.me/${req.applicantPhone.replace(/\D/g,'')}`} 
+                                                    target="_blank"
+                                                    className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-600 hover:text-white transition-all shadow-sm"
+                                                    title="Hubungi WhatsApp"
+                                                >
+                                                    <MessageCircle size={16} />
+                                                </a>
+                                            ) : (
+                                                <button 
+                                                    disabled
+                                                    className="p-2 bg-slate-50 text-slate-300 rounded-lg cursor-not-allowed"
+                                                    title="No WhatsApp"
+                                                >
+                                                    <MessageCircle size={16} />
+                                                </button>
+                                            )}
                                             <button 
                                                 onClick={() => { setEditingRequest(req); setIsAddModalOpen(true); }}
                                                 className="p-2 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-600 hover:text-white transition-all shadow-sm"

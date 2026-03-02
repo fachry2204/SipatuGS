@@ -115,19 +115,9 @@ export interface Report {
 export interface Staff {
   id: string;
   nik: string;
-  nomorAnggota: string;
   namaLengkap: string;
-  tempatLahir: string;
-  tanggalLahir: string;
-  jenisKelamin: Gender;
-  alamatLengkap: string;
-  latitude: number;
-  longitude: number;
-  nomorWhatsapp: string;
-  tanggalMasuk: string;
-  fotoProfile: string;
   status: DutyStatus;
-  totalTugasBerhasil: number;
+  fotoProfile: string;
 }
 
 export interface Citizen {
@@ -240,4 +230,40 @@ export interface ServiceRequest {
   signedLetterUrl?: string; 
   verificationCode?: string; 
   logs: ServiceLog[];
+}
+
+export interface PPSU {
+  id: string;
+  nik: string;
+  nomorAnggota: string;
+  namaLengkap: string;
+  jenisKelamin: Gender;
+  alamatLengkap: string;
+  latitude: number;
+  longitude: number;
+  nomorWhatsapp: string;
+  tanggalMasuk: string;
+  fotoProfile: string;
+  status: DutyStatus;
+  totalTugasBerhasil: number;
+}
+
+export interface FKDM {
+  id: string;
+  nama: string;
+  nik: string;
+  phone: string;
+  jabatan: string;
+  wilayah: string;
+  foto?: string;
+}
+
+export interface KarangTaruna {
+  id: string;
+  nama: string;
+  nik: string;
+  phone: string;
+  jabatan: string;
+  wilayah: string;
+  foto?: string;
 }

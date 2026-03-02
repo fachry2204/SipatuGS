@@ -86,7 +86,7 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ request, onClos
         onUpdate({
             ...request,
             status: nextStatus,
-            logs: [...request.logs, newLog],
+            logs: [...(request.logs || []), newLog],
             ...extraData
         });
         setIsProcessing(false);
@@ -567,9 +567,15 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ request, onClos
                                         <div className="flex flex-wrap items-center gap-3 mt-2">
                                             <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-indigo-50 text-indigo-600 border border-indigo-100">KK: {applicant.kk}</span>
                                             {/* Hide WhatsApp link for Warga View if wanted, but generally okay to keep for self reference */}
-                                            <a href={`https://wa.me/${request.applicantPhone.replace(/\D/g,'')}`} target="_blank" className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-green-50 text-green-700 border border-green-100 flex items-center gap-1">
-                                                <MessageCircle size={10}/> {request.applicantPhone}
-                                            </a>
+                                            {request.applicantPhone ? (
+                                                <a href={`https://wa.me/${request.applicantPhone.replace(/\D/g,'')}`} target="_blank" className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-green-50 text-green-700 border border-green-100 flex items-center gap-1">
+                                                    <MessageCircle size={10}/> {request.applicantPhone}
+                                                </a>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-slate-50 text-slate-400 border border-slate-100 flex items-center gap-1">
+                                                    <MessageCircle size={10}/> -
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -628,13 +634,13 @@ const ServiceDetailModal: React.FC<ServiceDetailModalProps> = ({ request, onClos
                            <History size={14} className="text-amber-500" /> Log Status Permohonan
                         </h4>
                         <div className="space-y-6 relative border-l-2 border-slate-100 pl-6 ml-2">
-                            {request.logs.slice().reverse().map((log, idx) => (
+                            {(request.logs || []).slice().reverse().map((log, idx) => (
                                 <div key={idx} className="relative">
                                     <div className={`absolute -left-[31px] top-0 w-4 h-4 rounded-full border-2 border-white ${idx === 0 ? 'bg-indigo-600 scale-125 shadow-lg' : 'bg-slate-300'}`}></div>
                                     <div>
                                         <div className="flex justify-between items-center">
                                             <p className={`text-xs font-black uppercase ${idx === 0 ? 'text-indigo-600' : 'text-slate-500'}`}>{log.status}</p>
-                                            <p className="text-[10px] text-slate-400 font-mono">{new Date(log.timestamp).toLocaleString('id-ID')}</p>
+                                            <p className="text-[10px] text-slate-400 font-mono">{log.timestamp && !isNaN(new Date(log.timestamp).getTime()) ? new Date(log.timestamp).toLocaleString('id-ID') : '-'}</p>
                                         </div>
                                         <p className="text-xs text-slate-800 font-bold mt-1">{log.note}</p>
                                         <p className="text-[10px] text-slate-400 mt-0.5">Oleh: {log.actor}</p>

@@ -2,47 +2,42 @@
 import React, { useState } from 'react';
 import { User, Lock, Eye, EyeOff, LogIn, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { User as UserType, SystemSettings } from '../types';
+import { apiService } from '../services/api';
 
 interface LoginPageProps {
   onLogin: (user: UserType) => void;
   settings: SystemSettings;
-  users: UserType[]; // Added users prop
 }
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin, settings, users }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin, settings }) => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsLoading(true);
 
-    // Simulate Network Delay
-    setTimeout(() => {
-      // Logic Update: Search in the passed 'users' prop (which contains generated citizens)
-      const user = users.find(u => 
-        (u.username.toLowerCase() === identifier.toLowerCase()) ||
-        (u.email && u.email.toLowerCase() === identifier.toLowerCase()) ||
-        (u.nik && u.nik === identifier)
-      );
-
-      if (user) {
-        if (user.password === password) {
-          setIsLoading(false);
-          onLogin(user);
+    try {
+        const user = await apiService.login(identifier, password);
+        
+        if (user && !user.error) {
+            // Login Success
+            setIsLoading(false);
+            onLogin(user);
         } else {
-          setIsLoading(false);
-          setError('Password salah. Silakan coba lagi.');
+            // Login Failed
+            setIsLoading(false);
+            setError(user?.error || 'Login gagal. Periksa kembali kredensial Anda.');
         }
-      } else {
+    } catch (err) {
+        console.error(err);
         setIsLoading(false);
-        setError('Pengguna tidak ditemukan. Periksa Username/NIK Anda.');
-      }
-    }, 1000);
+        setError('Terjadi kesalahan koneksi. Silakan coba lagi.');
+    }
   };
 
   return (

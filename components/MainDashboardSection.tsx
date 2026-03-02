@@ -10,22 +10,23 @@ import {
   ShieldCheck,
   FileText
 } from 'lucide-react';
-import { MOCK_STAFF, MOCK_CITIZENS } from '../constants';
-import { User } from '../types';
+import { User, Citizen, Staff } from '../types';
 
 interface MainDashboardSectionProps {
   user: User;
+  citizens: Citizen[];
+  staffList: Staff[];
   onNavigate: (menu: string) => void;
 }
 
-const MainDashboardSection: React.FC<MainDashboardSectionProps> = ({ user, onNavigate }) => {
+const MainDashboardSection: React.FC<MainDashboardSectionProps> = ({ user, citizens, staffList, onNavigate }) => {
   const currentDate = new Date();
   
   const stats = {
-    totalWarga: MOCK_CITIZENS.length,
-    totalKK: new Set(MOCK_CITIZENS.map(c => c.kk)).size,
-    totalPPSU: MOCK_STAFF.length,
-    totalOnline: MOCK_STAFF.filter(s => s.status === 'Online' || s.status === 'Bertugas').length
+    totalWarga: citizens.length,
+    totalKK: new Set(citizens.map(c => c.kk)).size,
+    totalPPSU: staffList.length,
+    totalOnline: staffList.filter(s => s.status === 'Online' || s.status === 'Bertugas').length
   };
 
   return (

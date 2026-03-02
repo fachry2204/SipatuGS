@@ -18,24 +18,25 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
-import { Staff, Gender, User } from '../types';
-import ProfileModal from './ProfileModal';
-import AddStaffModal from './AddStaffModal';
-import DeleteModal from './DeleteModal';
+import { PPSU, Gender, User } from '../types';
+import { apiService } from '../services/api';
+import PPSUProfileModal from './PPSUProfileModal';
+import AddPPSUModal from './AddPPSUModal';
+import DeletePPSUModal from './DeletePPSUModal';
 
 interface PPSUSectionProps {
   user: User;
-  staffList: Staff[];
-  setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
+  staffList: PPSU[];
+  setStaffList: React.Dispatch<React.SetStateAction<PPSU[]>>;
 }
 
 const PPSUSection: React.FC<PPSUSectionProps> = ({ user, staffList, setStaffList }) => {
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<PPSU | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<Staff | null>(null);
+  const [editingStaff, setEditingStaff] = useState<PPSU | null>(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState<PPSU | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -74,29 +75,54 @@ const PPSUSection: React.FC<PPSUSectionProps> = ({ user, staffList, setStaffList
     }
   };
 
-  const handleEdit = (staff: Staff) => {
+  const handleEdit = (staff: PPSU) => {
     setEditingStaff(staff);
     setIsAddModalOpen(true);
     setSelectedStaff(null); // Close profile view if open
   };
 
   // Logic to save new or updated staff
-  const handleSaveStaff = (staffData: Staff) => {
-    if (editingStaff) {
-      // Update existing
-      setStaffList(prev => prev.map(item => item.id === staffData.id ? staffData : item));
-    } else {
-      // Add new
-      setStaffList(prev => [staffData, ...prev]);
+  const handleSaveStaff = async (staffData: PPSU) => {
+    try {
+      if (editingStaff) {
+        // Update existing
+        await apiService.updatePPSU(staffData);
+        // setStaffList(prev => prev.map(item => item.id === staffData.id ? staffData : item));
+      } else {
+        // Add new
+        await apiService.createPPSU(staffData);
+        // setStaffList(prev => [staffData, ...prev]);
+      }
+      
+      // Refresh list from server to be sure
+      const freshStaff = await apiService.getPPSU();
+      if (freshStaff) setStaffList(freshStaff);
+
+      setIsAddModalOpen(false);
+      setEditingStaff(null);
+      alert(editingStaff ? "Data petugas berhasil diperbarui." : "Petugas baru berhasil ditambahkan.");
+    } catch (err) {
+      console.error("Failed to save staff", err);
+      alert("Gagal menyimpan data petugas.");
     }
-    setIsAddModalOpen(false);
-    setEditingStaff(null);
   };
 
   // Logic to delete staff
-  const handleDeleteStaff = (id: string) => {
-    setStaffList(prev => prev.filter(item => item.id !== id));
-    setIsDeleteModalOpen(null);
+  const handleDeleteStaff = async (id: string) => {
+    // Confirmation handled by DeletePPSUModal
+    try {
+      await apiService.deletePPSU(id);
+      // setStaffList(prev => prev.filter(item => item.id !== id));
+      
+      const freshStaff = await apiService.getPPSU();
+      if (freshStaff) setStaffList(freshStaff);
+      
+      setIsDeleteModalOpen(null);
+      alert("Data petugas berhasil dihapus.");
+    } catch (err) {
+      console.error("Failed to delete staff", err);
+      alert("Gagal menghapus data petugas.");
+    }
   };
 
   // Advanced Pagination Button Logic
@@ -382,7 +408,7 @@ const PPSUSection: React.FC<PPSUSectionProps> = ({ user, staffList, setStaffList
 
       {/* Modals */}
       {selectedStaff && (
-        <ProfileModal 
+        <PPSUProfileModal 
           staff={selectedStaff} 
           onClose={() => setSelectedStaff(null)} 
           user={user}
@@ -395,7 +421,7 @@ const PPSUSection: React.FC<PPSUSectionProps> = ({ user, staffList, setStaffList
       )}
 
       {isAddModalOpen && (
-        <AddStaffModal 
+        <AddPPSUModal 
           staff={editingStaff}
           onClose={() => {
             setIsAddModalOpen(false);
@@ -406,10 +432,11 @@ const PPSUSection: React.FC<PPSUSectionProps> = ({ user, staffList, setStaffList
       )}
 
       {isDeleteModalOpen && (
-        <DeleteModal 
+        <DeletePPSUModal 
           staff={isDeleteModalOpen} 
           onClose={() => setIsDeleteModalOpen(null)} 
           user={user}
+          onConfirm={() => handleDeleteStaff(isDeleteModalOpen.id)}
         />
       )}
     </div>

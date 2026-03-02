@@ -2,60 +2,33 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, ShieldCheck, Lock, UserCircle } from 'lucide-react';
 import { Citizen, User } from '../types';
-import { MOCK_USERS } from '../constants'; // Importing users to verify credentials
+import { apiService } from '../services/api';
 
 interface DeleteCitizenModalProps {
   citizen: Citizen;
+  users: User[];
   onClose: () => void;
   onConfirm: (id: string) => void;
 }
 
-const DeleteCitizenModal: React.FC<DeleteCitizenModalProps> = ({ citizen, onClose, onConfirm }) => {
-  const [identifier, setIdentifier] = useState(''); // Username, Email, or NIK
-  const [password, setPassword] = useState('');
+const DeleteCitizenModal: React.FC<DeleteCitizenModalProps> = ({ citizen, users, onClose, onConfirm }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleDelete = (e: React.FormEvent) => {
+  const handleDelete = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsDeleting(true);
 
-    // Simulate API Processing delay
-    setTimeout(() => {
-      // 1. Find the user attempting to delete from MOCK_USERS
-      const adminUser = MOCK_USERS.find(u => 
-        u.username.toLowerCase() === identifier.toLowerCase() ||
-        (u.email && u.email.toLowerCase() === identifier.toLowerCase()) ||
-        (u.nik && u.nik === identifier)
-      );
-
-      // 2. Validation Logic
-      if (!adminUser) {
-        setError('User tidak ditemukan dalam database sistem.');
-        setIsDeleting(false);
-        return;
-      }
-
-      // 3. Check Role Permission
-      const allowedRoles = ['Administrator', 'Admin', 'Pimpinan'];
-      if (!allowedRoles.includes(adminUser.role)) {
-        setError(`Akses Ditolak. Role '${adminUser.role}' tidak memiliki izin menghapus data warga. Hubungi Administrator.`);
-        setIsDeleting(false);
-        return;
-      }
-
-      // 4. Check Password 
-      if (adminUser.password !== password) {
-        setError('Password salah.');
-        setIsDeleting(false);
-        return;
-      }
-
-      // Success
+    try {
+      // Direct Delete without Authorization
       onConfirm(citizen.id);
       onClose();
-    }, 1000);
+    } catch (err) {
+      console.error("Delete error:", err);
+      setError('Terjadi kesalahan saat menghapus data.');
+      setIsDeleting(false);
+    }
   };
 
   return (
@@ -66,8 +39,8 @@ const DeleteCitizenModal: React.FC<DeleteCitizenModalProps> = ({ citizen, onClos
             <AlertTriangle size={24} />
           </div>
           <div>
-            <h3 className="font-bold text-red-900">Hapus Data Warga</h3>
-            <p className="text-xs text-red-700 font-medium">Otorisasi Pimpinan/Admin Diperlukan.</p>
+            <h3 className="font-bold text-red-900">Konfirmasi Hapus</h3>
+            <p className="text-xs text-red-700 font-medium">Tindakan ini tidak dapat dibatalkan.</p>
           </div>
         </div>
 
@@ -79,12 +52,12 @@ const DeleteCitizenModal: React.FC<DeleteCitizenModalProps> = ({ citizen, onClos
              <div>
                <p className="text-xs text-slate-500 font-medium">Menghapus Data:</p>
                <p className="text-sm font-bold text-slate-800">{citizen.namaLengkap}</p>
-               <p className="text-[10px] text-slate-400 font-mono">{citizen.nik}</p>
+               <p className="text-sm text-slate-400 font-mono">{citizen.nik}</p>
              </div>
           </div>
           
           <div className="mb-4 text-xs text-slate-500 bg-yellow-50 p-3 rounded-lg border border-yellow-100">
-             Hanya <b>Administrator</b>, <b>Admin</b>, atau <b>Pimpinan</b> yang dapat menghapus data ini.
+             Apakah Anda yakin ingin menghapus data warga ini secara permanen dari sistem?
           </div>
 
           {error && (
@@ -95,36 +68,6 @@ const DeleteCitizenModal: React.FC<DeleteCitizenModalProps> = ({ citizen, onClos
           )}
 
           <form onSubmit={handleDelete} className="space-y-4">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 ml-1">ID Otorisasi (Username/Email/NIK)</label>
-              <div className="relative">
-                <UserCircle className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="text" 
-                  value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
-                  placeholder="Username, Email, atau NIK" 
-                  required
-                  className="w-full pl-10 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none" 
-                />
-              </div>
-            </div>
-            
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-slate-500 ml-1 text-slate-700">Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                <input 
-                  type="password" 
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Masukkan password Anda" 
-                  required
-                  className="w-full pl-10 pr-3 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-red-500 outline-none" 
-                />
-              </div>
-            </div>
-
             <div className="pt-4 flex gap-3">
               <button 
                 type="button" 
@@ -138,7 +81,7 @@ const DeleteCitizenModal: React.FC<DeleteCitizenModalProps> = ({ citizen, onClos
                 disabled={isDeleting}
                 className="flex-1 py-3 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white text-sm font-bold rounded-xl shadow-lg shadow-red-100 transition-all flex items-center justify-center"
               >
-                {isDeleting ? 'Memproses...' : 'Hapus Data'}
+                {isDeleting ? 'Memproses...' : 'Ya, Hapus Data'}
               </button>
             </div>
           </form>

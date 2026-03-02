@@ -2,31 +2,39 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import L from 'leaflet';
 import { MapPin, Navigation, MessageCircle, ChevronDown, ChevronUp, Layers, ListTodo } from 'lucide-react';
-import { DutyStatus, Staff, Report } from '../types';
+import { DutyStatus, PPSU, Report } from '../types';
+import { apiService } from '../services/api';
 import StaffTaskListModal from './StaffTaskListModal';
 
 interface MapSectionProps {
   reports: Report[];
   setReports: React.Dispatch<React.SetStateAction<Report[]>>;
-  staffList: Staff[];
-  setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
+  staffList: PPSU[];
+  setStaffList: React.Dispatch<React.SetStateAction<PPSU[]>>;
 }
 
 const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList, setStaffList }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markersLayerRef = useRef<L.LayerGroup | null>(null);
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<PPSU | null>(null);
   const [isListMinimized, setIsListMinimized] = useState(false);
   
   // NEW: Legend Minimize State
   const [isLegendMinimized, setIsLegendMinimized] = useState(false);
   
   // NEW: Task Modal State
-  const [viewingTasksFor, setViewingTasksFor] = useState<Staff | null>(null);
+  const [viewingTasksFor, setViewingTasksFor] = useState<PPSU | null>(null);
   
   // FILTER STATE
   const [mapFilter, setMapFilter] = useState<string>('ALL');
+
+  useEffect(() => {
+    console.log('MapSection staffList:', staffList);
+    if (staffList.length === 0) {
+      console.warn('MapSection received empty staffList!');
+    }
+  }, [staffList]);
 
   // Base Data (Exclude Offline)
   const activeStaff = useMemo(() => staffList.filter(s => s.status !== DutyStatus.OFFLINE), [staffList]);
@@ -58,7 +66,7 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
   };
 
   // Handler for updating reports from the modal
-  const handleUpdateReport = (updatedReport: Report, staffUpdates?: Staff[]) => {
+  const handleUpdateReport = async (updatedReport: Report, staffUpdates?: PPSU[]) => {
     setReports(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
     
     if (staffUpdates && staffUpdates.length > 0) {
@@ -68,6 +76,13 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
                 return update ? update : s;
             });
         });
+
+        // Persist staff status changes to API
+        try {
+            await Promise.all(staffUpdates.map(s => apiService.updatePPSU(s)));
+        } catch (e) {
+            console.error("Failed to persist staff updates", e);
+        }
     }
   };
 
@@ -92,12 +107,16 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
 
     // Force map resize calculation
     setTimeout(() => {
-        map.invalidateSize();
+        if (mapInstanceRef.current) {
+            mapInstanceRef.current.invalidateSize();
+        }
     }, 100);
 
     return () => {
-      map.remove();
-      mapInstanceRef.current = null;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+      }
     };
   }, []);
 
@@ -122,6 +141,11 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
         animationClass = 'hidden'; 
       } else {
         return; 
+      }
+
+      // Skip if coordinates are invalid
+      if (!staff.latitude || !staff.longitude) {
+        return;
       }
 
       const customIcon = L.divIcon({
@@ -164,9 +188,9 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
     });
   }, [displayedStaff]);
 
-  const handleLocate = (staff: Staff) => {
+  const handleLocate = (staff: PPSU) => {
     setSelectedStaff(staff);
-    if (mapInstanceRef.current) {
+    if (mapInstanceRef.current && staff.latitude && staff.longitude) {
         mapInstanceRef.current.flyTo([staff.latitude, staff.longitude], 18, {
             animate: true,
             duration: 1.5
@@ -288,9 +312,11 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
 
             {/* Selected Staff Card Overlay */}
             {selectedStaff && (
-                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 md:left-auto md:right-6 md:translate-x-0 w-[90%] md:w-80 z-[1000] bg-white rounded-3xl shadow-2xl p-4 border border-slate-100 animate-in slide-in-from-bottom-10 fade-in duration-300">
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-slate-800 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    {selectedStaff.status}
+                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 md:translate-y-0 md:top-6 md:left-auto md:right-6 md:translate-x-0 w-[90%] md:w-80 z-[1000] bg-white rounded-3xl shadow-2xl p-4 border border-slate-100 animate-in slide-in-from-bottom-10 fade-in duration-300 max-h-[calc(100%-3rem)] overflow-y-auto custom-scrollbar">
+                <div className="sticky top-0 z-10 flex justify-center mb-6">
+                    <div className="absolute -top-3 bg-slate-800 text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-md">
+                        {selectedStaff.status}
+                    </div>
                 </div>
                 <div className="flex flex-col items-center text-center mt-2">
                     <div className={`p-1 rounded-full border-2 ${
@@ -302,14 +328,14 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
                     <h3 className="font-bold text-slate-800 text-lg mt-2">{selectedStaff.namaLengkap}</h3>
                     <p className="text-xs font-bold text-slate-400">{selectedStaff.nomorAnggota}</p>
                     
-                    <div className="w-full bg-slate-50 rounded-xl p-3 my-3 text-left space-y-2">
+                    <div className="w-full bg-slate-50 rounded-xl p-3 my-2 text-left space-y-2">
                         <div className="flex items-start gap-2 text-xs text-slate-600">
                             <MapPin size={14} className="mt-0.5 shrink-0 text-orange-500" />
-                            <span className="leading-tight">{selectedStaff.alamatLengkap}</span>
+                            <span className="leading-tight">{selectedStaff.alamatLengkap || 'Alamat tidak tersedia'}</span>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t border-slate-200">
-                            <span className="text-[10px] font-mono text-slate-400">Lat: {selectedStaff.latitude.toFixed(4)}</span>
-                            <span className="text-[10px] font-mono text-slate-400">Lng: {selectedStaff.longitude.toFixed(4)}</span>
+                            <span className="text-[10px] font-mono text-slate-400">Lat: {selectedStaff.latitude ? Number(selectedStaff.latitude).toFixed(4) : '-'}</span>
+                            <span className="text-[10px] font-mono text-slate-400">Lng: {selectedStaff.longitude ? Number(selectedStaff.longitude).toFixed(4) : '-'}</span>
                         </div>
                     </div>
 
@@ -321,13 +347,22 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
                         >
                             <MessageCircle size={16} /> WhatsApp
                         </a>
-                        <a 
-                            href={`https://www.google.com/maps?q=${selectedStaff.latitude},${selectedStaff.longitude}`}
-                            target="_blank"
-                            className="flex-1 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold transition-colors"
-                        >
-                            <Navigation size={16} /> Navigasi
-                        </a>
+                        {selectedStaff.latitude && selectedStaff.longitude ? (
+                            <a 
+                                href={`https://www.google.com/maps?q=${selectedStaff.latitude},${selectedStaff.longitude}`}
+                                target="_blank"
+                                className="flex-1 flex items-center justify-center gap-2 bg-blue-500 hover:bg-blue-600 text-white py-2.5 rounded-xl text-xs font-bold transition-colors"
+                            >
+                                <Navigation size={16} /> Navigasi
+                            </a>
+                        ) : (
+                            <button 
+                                disabled
+                                className="flex-1 flex items-center justify-center gap-2 bg-slate-300 text-white py-2.5 rounded-xl text-xs font-bold cursor-not-allowed"
+                            >
+                                <Navigation size={16} /> Navigasi
+                            </button>
+                        )}
                     </div>
 
                     {/* NEW: Button Daftar Tugas */}
@@ -340,7 +375,7 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
                     
                     <button 
                         onClick={() => setSelectedStaff(null)}
-                        className="mt-1 text-xs text-slate-400 hover:text-slate-600 font-medium"
+                        className="mt-1 text-xs text-slate-400 hover:text-slate-600 font-medium pb-2"
                     >
                         Tutup Kartu
                     </button>
@@ -369,29 +404,80 @@ const MapSection: React.FC<MapSectionProps> = ({ reports, setReports, staffList,
              </span>
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-white">
-             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+          <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-slate-50">
+             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {onlineList.map(staff => (
                     <div 
                         key={staff.id}
-                        onClick={() => handleLocate(staff)}
+                        onClick={() => setViewingTasksFor(staff)}
                         className={`
-                            group flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-all hover:shadow-sm
+                            group relative bg-white rounded-xl p-3 border transition-all duration-300 cursor-pointer hover:-translate-y-1 hover:shadow-lg
                             ${selectedStaff?.id === staff.id 
-                                ? 'bg-orange-50 border-orange-200 ring-1 ring-orange-200' 
-                                : 'bg-white border-slate-100 hover:border-orange-200'
+                                ? 'border-orange-500 ring-2 ring-orange-200 shadow-orange-100' 
+                                : 'border-slate-100 hover:border-orange-200'
                             }
                         `}
                     >
-                         {/* Status Icon Only */}
-                        <div className={`w-3 h-3 shrink-0 rounded-full ${
-                            staff.status === DutyStatus.ONLINE ? 'bg-green-500 shadow-[0_0_0_2px_rgba(34,197,94,0.2)]' : 
-                            staff.status === DutyStatus.BERTUGAS ? 'bg-blue-600 shadow-[0_0_0_2px_rgba(37,99,235,0.2)]' :
-                            'bg-yellow-500'
-                        }`}></div>
-                        
-                        {/* Name Only */}
-                        <span className="text-xs font-bold text-slate-700 truncate">{staff.namaLengkap}</span>
+                        {/* Status Badge */}
+                        <div className={`absolute top-3 right-3 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                            staff.status === DutyStatus.ONLINE ? 'bg-green-100 text-green-600' : 
+                            staff.status === DutyStatus.BERTUGAS ? 'bg-blue-100 text-blue-600' :
+                            'bg-yellow-100 text-yellow-600'
+                        }`}>
+                            {staff.status}
+                        </div>
+
+                        <div className="flex items-center gap-3">
+                            {/* Avatar with Status Dot */}
+                            <div className="relative shrink-0">
+                                <div className={`absolute inset-0 rounded-full blur opacity-40 ${
+                                    staff.status === DutyStatus.ONLINE ? 'bg-green-500' : 
+                                    staff.status === DutyStatus.BERTUGAS ? 'bg-blue-600' :
+                                    'bg-yellow-500'
+                                }`}></div>
+                                <img 
+                                    src={staff.fotoProfile} 
+                                    alt={staff.namaLengkap}
+                                    className="relative w-10 h-10 rounded-full object-cover border-2 border-white shadow-sm"
+                                />
+                                <div className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                                    staff.status === DutyStatus.ONLINE ? 'bg-green-500' : 
+                                    staff.status === DutyStatus.BERTUGAS ? 'bg-blue-600' :
+                                    'bg-yellow-500'
+                                }`}></div>
+                            </div>
+
+                            {/* Info */}
+                            <div className="min-w-0 flex-1">
+                                <h4 className="font-bold text-slate-800 text-xs truncate leading-tight mb-0.5">{staff.namaLengkap}</h4>
+                                <p className="text-[10px] text-slate-400 font-bold truncate mb-1">{staff.nomorAnggota || 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        {/* Location & Action */}
+                        <div className="mt-3 pt-2 border-t border-slate-50 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1 text-[10px] text-slate-500 truncate flex-1">
+                                <MapPin size={12} className="text-orange-500 shrink-0" />
+                                <span className="truncate">
+                                    {staff.alamatLengkap 
+                                        ? staff.alamatLengkap 
+                                        : (staff.latitude && staff.longitude 
+                                            ? `${Number(staff.latitude).toFixed(6)}, ${Number(staff.longitude).toFixed(6)}` 
+                                            : 'Lokasi tidak tersedia')
+                                    }
+                                </span>
+                            </div>
+                            <button 
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleLocate(staff);
+                                }}
+                                className={`p-1 rounded-md text-white transition-colors shrink-0 ${
+                                selectedStaff?.id === staff.id ? 'bg-orange-500' : 'bg-slate-200 group-hover:bg-orange-500'
+                            }`}>
+                                <Navigation size={12} />
+                            </button>
+                        </div>
                     </div>
                 ))}
              </div>

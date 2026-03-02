@@ -20,7 +20,8 @@ import {
   Trash2,
   Timer
 } from 'lucide-react';
-import { Report, ReportStatus, Staff, User, Citizen } from '../types';
+import { Report, Staff, User, Citizen, ReportStatus } from '../types';
+import { apiService } from '../services/api';
 import AddReportModal from './AddReportModal';
 import ReportActionModal from './ReportActionModal';
 import ReportDetailModal from './ReportDetailModal';
@@ -166,10 +167,16 @@ const ReportListSection: React.FC<ReportListSectionProps> = ({ type, reports, se
 
   const categories = Array.from(new Set(reports.map(r => r.category)));
 
-  const handleSaveReport = (newReport: Report) => {
-    setReports(prev => [newReport, ...prev]);
-    setIsAddModalOpen(false);
-    alert("Laporan Berhasil Dikirim! Menunggu Verifikasi Admin.");
+  const handleSaveReport = async (newReport: Report) => {
+    try {
+      await apiService.createReport(newReport);
+      const fresh = await apiService.getReports();
+      if (fresh) setReports(fresh);
+      setIsAddModalOpen(false);
+      alert("Laporan Berhasil Dikirim! Menunggu Verifikasi Admin.");
+    } catch (e) {
+      alert("Gagal menyimpan laporan ke server.");
+    }
   };
 
   const handleUpdateReport = (updatedReport: Report, staffUpdates?: Staff[]) => {
@@ -368,7 +375,7 @@ const ReportListSection: React.FC<ReportListSectionProps> = ({ type, reports, se
             currentUserNik={userFilter} // Pass logged in user NIK
         />
       )}
-      {selectedDetailReport && <ReportDetailModal report={selectedDetailReport} onClose={() => setSelectedDetailReport(null)} onAction={handleDetailAction} onDelete={(!userFilter) ? () => setReportToDelete(selectedDetailReport) : undefined} />}
+      {selectedDetailReport && <ReportDetailModal report={selectedDetailReport} staffList={staffList} onClose={() => setSelectedDetailReport(null)} onAction={handleDetailAction} onDelete={(!userFilter) ? () => setReportToDelete(selectedDetailReport) : undefined} />}
       {actionReport && <ReportActionModal report={actionReport.report} role={actionReport.role} staffList={staffList} onClose={() => setActionReport(null)} onUpdate={handleUpdateReport} />}
       {reportToDelete && <AdminVerificationModal isOpen={!!reportToDelete} onClose={() => setReportToDelete(null)} onSuccess={handleDeleteSuccess} users={users} actionType="Delete" targetUserName={reportToDelete.title} />}
     </div>

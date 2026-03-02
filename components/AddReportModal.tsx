@@ -217,7 +217,7 @@ const AddReportModal: React.FC<AddReportModalProps> = ({ onClose, onSave, citize
                             ]
                         }
                     });
-                    const extractedNIK = response.text.trim().replace(/\D/g, '');
+                    const extractedNIK = String(response.text || '').trim().replace(/\D/g, '');
                     setFormData(prev => ({ ...prev, nik: extractedNIK }));
                     handleNIKSearch(extractedNIK);
                 } catch (err) {

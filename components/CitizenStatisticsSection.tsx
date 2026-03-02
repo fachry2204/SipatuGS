@@ -12,9 +12,13 @@ import {
   BarChart3,
   PieChart as PieChartIcon
 } from 'lucide-react';
-import { MOCK_CITIZENS } from '../constants';
+import { Citizen } from '../types';
 
-const CitizenStatisticsSection: React.FC = () => {
+interface CitizenStatisticsSectionProps {
+  citizens: Citizen[];
+}
+
+const CitizenStatisticsSection: React.FC<CitizenStatisticsSectionProps> = ({ citizens }) => {
   
   // 1. Process Age Data with New Classifications
   const ageData = useMemo(() => {
@@ -29,7 +33,7 @@ const CitizenStatisticsSection: React.FC = () => {
       'Lansia (>60)': 0
     };
 
-    MOCK_CITIZENS.forEach(c => {
+    citizens.forEach(c => {
       const birthDate = new Date(c.tanggalLahir);
       let age = today.getFullYear() - birthDate.getFullYear();
       const m = today.getMonth() - birthDate.getMonth();
@@ -49,37 +53,37 @@ const CitizenStatisticsSection: React.FC = () => {
       name: key,
       value: groups[key as keyof typeof groups]
     }));
-  }, []);
+  }, [citizens]);
 
   // 2. Process Jobs Data
   const jobData = useMemo(() => {
     const counts: Record<string, number> = {};
-    MOCK_CITIZENS.forEach(c => {
+    citizens.forEach(c => {
       counts[c.pekerjaan] = (counts[c.pekerjaan] || 0) + 1;
     });
     return Object.keys(counts)
       .map(key => ({ name: key, value: counts[key] }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 5); // Top 5 jobs
-  }, []);
+  }, [citizens]);
 
   // 3. Process Religion Data
   const religionData = useMemo(() => {
     const counts: Record<string, number> = {};
-    MOCK_CITIZENS.forEach(c => {
+    citizens.forEach(c => {
       counts[c.agama] = (counts[c.agama] || 0) + 1;
     });
     return Object.keys(counts).map(key => ({ name: key, value: counts[key] }));
-  }, []);
+  }, [citizens]);
 
   // 4. Process Marital Status Data
   const maritalData = useMemo(() => {
     const counts: Record<string, number> = {};
-    MOCK_CITIZENS.forEach(c => {
+    citizens.forEach(c => {
       counts[c.statusPerkawinan] = (counts[c.statusPerkawinan] || 0) + 1;
     });
     return Object.keys(counts).map(key => ({ name: key, value: counts[key] }));
-  }, []);
+  }, [citizens]);
 
   const COLORS = ['#f97316', '#3b82f6', '#10b981', '#ef4444', '#8b5cf6', '#ec4899'];
 

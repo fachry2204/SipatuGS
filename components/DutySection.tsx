@@ -9,16 +9,17 @@ import {
   User as UserIcon,
   ListTodo
 } from 'lucide-react';
-import { DutyStatus, Staff, User, Report } from '../types';
-import ProfileModal from './ProfileModal';
+import { DutyStatus, PPSU, User, Report } from '../types';
+import { apiService } from '../services/api';
+import PPSUProfileModal from './PPSUProfileModal';
 import StaffTaskListModal from './StaffTaskListModal';
 
 interface DutySectionProps {
   user: User;
   reports: Report[];
   setReports: React.Dispatch<React.SetStateAction<Report[]>>;
-  staffList: Staff[];
-  setStaffList: React.Dispatch<React.SetStateAction<Staff[]>>;
+  staffList: PPSU[];
+  setStaffList: React.Dispatch<React.SetStateAction<PPSU[]>>;
 }
 
 const DutySection: React.FC<DutySectionProps> = ({ user, reports, setReports, staffList, setStaffList }) => {
@@ -27,8 +28,8 @@ const DutySection: React.FC<DutySectionProps> = ({ user, reports, setReports, st
   const [currentTime, setCurrentTime] = useState(new Date());
   
   // Modal States
-  const [selectedStaff, setSelectedStaff] = useState<Staff | null>(null);
-  const [viewingTasksFor, setViewingTasksFor] = useState<Staff | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<PPSU | null>(null);
+  const [viewingTasksFor, setViewingTasksFor] = useState<PPSU | null>(null);
   
   // Realtime clock effect
   useEffect(() => {
@@ -55,7 +56,7 @@ const DutySection: React.FC<DutySectionProps> = ({ user, reports, setReports, st
     return `bg-white p-4 rounded-xl shadow-sm border border-slate-100 border-b-4 ${borderColor} cursor-pointer transition-all duration-200 ${isActive ? `ring-2 ring-offset-2 ${baseColor.replace('bg-', 'ring-')} transform scale-105` : 'hover:scale-105 hover:shadow-md'}`;
   };
 
-  const handleUpdateReport = (updatedReport: Report, staffUpdates?: Staff[]) => {
+  const handleUpdateReport = async (updatedReport: Report, staffUpdates?: PPSU[]) => {
     setReports(prev => prev.map(r => r.id === updatedReport.id ? updatedReport : r));
     
     // Update Staff Status if report completion triggers status change
@@ -66,6 +67,13 @@ const DutySection: React.FC<DutySectionProps> = ({ user, reports, setReports, st
                 return update ? update : s;
             });
         });
+
+        // Persist staff status changes to API
+        try {
+            await Promise.all(staffUpdates.map(s => apiService.updatePPSU(s)));
+        } catch (e) {
+            console.error("Failed to persist staff updates", e);
+        }
     }
   };
 
@@ -233,7 +241,7 @@ const DutySection: React.FC<DutySectionProps> = ({ user, reports, setReports, st
       </div>
 
       {selectedStaff && (
-        <ProfileModal 
+        <PPSUProfileModal 
           staff={selectedStaff} 
           onClose={() => setSelectedStaff(null)} 
           user={user}

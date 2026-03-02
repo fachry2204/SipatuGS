@@ -16,6 +16,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { Citizen, Gender, ResidenceStatus, User } from '../types';
+import { apiService } from '../services/api';
 import AddCitizenModal from './AddCitizenModal';
 import DeleteCitizenModal from './DeleteCitizenModal';
 import CitizenProfileModal from './CitizenProfileModal';
@@ -36,6 +37,10 @@ const CitizenSection: React.FC<CitizenSectionProps> = ({ users = [], setUsers, c
   const [selectedCitizen, setSelectedCitizen] = useState<Citizen | null>(null); // For View
   const [editingCitizen, setEditingCitizen] = useState<Citizen | null>(null); // For Edit
   const [citizenToDelete, setCitizenToDelete] = useState<Citizen | null>(null); // For Delete
+
+  // Success Modal State
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [successModalData, setSuccessModalData] = useState<{name: string, username: string, nik: string} | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
@@ -68,67 +73,74 @@ const CitizenSection: React.FC<CitizenSectionProps> = ({ users = [], setUsers, c
     kk: new Set(citizens.map(c => c.kk)).size
   };
 
-  // Helper: Generate Unique Username GS-XXXX
-  const generateGSUsername = (): string => {
-    let username = '';
-    let isUnique = false;
 
-    while (!isUnique) {
-      // Generate random 4 digit number (1000 - 9999)
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      username = `GS-${randomNum}`;
-      
-      // Check if username already exists
-      const exists = users.some(u => u.username === username);
-      if (!exists) {
-        isUnique = true;
-      }
-    }
-    return username;
-  };
 
-  const handleSaveCitizen = (citizenData: Citizen) => {
-    if (editingCitizen) {
-      // Update Existing
-      setCitizens(prev => prev.map(c => c.id === citizenData.id ? citizenData : c));
-    } else {
-      // Add New Citizen
-      setCitizens(prev => [citizenData, ...prev]);
-
-      // === AUTOMATIC USER CREATION LOGIC ===
-      if (setUsers && users) {
-        // 1. Generate Username (GS-XXXX)
-        const newUsername = generateGSUsername();
-        
-        // 2. Create User Object
-        const newUser: User = {
-            id: `USR-${citizenData.id}`, // Link IDs
-            username: newUsername, // Login Username: GS-XXXX
-            name: citizenData.namaLengkap, // Display Name: Nama Lengkap
+  const handleSaveCitizen = async (citizenData: Citizen) => {
+    try {
+      if (editingCitizen) {
+        await apiService.updateCitizen(citizenData);
+        // Refresh users to reflect changes (e.g. Name/NIK update)
+        if (setUsers) {
+            const freshUsers = await apiService.getUsers();
+            if (freshUsers) setUsers(freshUsers);
+        }
+      } else {
+        await apiService.createCitizen(citizenData);
+        if (setUsers && users) {
+          // Logic Update: Warga Username is NIK
+          const newUsername = citizenData.nik;
+          const newUser: User = {
+            id: `USR-${citizenData.id}`,
+            username: newUsername,
+            name: citizenData.namaLengkap,
             nik: citizenData.nik,
-            password: citizenData.nik, // Password = NIK
-            role: 'Warga', // Default Role
+            password: citizenData.nik,
+            role: 'Warga',
             avatar: citizenData.fotoWajah || `https://ui-avatars.com/api/?name=${encodeURIComponent(citizenData.namaLengkap)}&background=random`
-        };
-
-        // 3. Update User State
-        setUsers(prevUsers => [...prevUsers, newUser]);
-        
-        // Optional: Notify
-        alert(`Data Warga disimpan.\nAkun User otomatis dibuat:\nNama: ${citizenData.namaLengkap}\nUsername: ${newUsername}\nPassword: ${citizenData.nik}`);
+          };
+          setUsers(prevUsers => [...prevUsers, newUser]);
+          try {
+            await apiService.createUser(newUser);
+            // Re-fetch users to keep UI in sync
+            const freshUsers = await apiService.getUsers();
+            if (freshUsers && setUsers) setUsers(freshUsers);
+          } catch {}
+          
+          setSuccessModalData({
+            name: citizenData.namaLengkap,
+            username: newUsername,
+            nik: citizenData.nik
+          });
+          setIsSuccessModalOpen(true);
+        }
       }
+      const fresh = await apiService.getCitizens();
+      if (fresh) setCitizens(fresh);
+      setIsAddModalOpen(false);
+      setEditingCitizen(null);
+    } catch (e) {
+      alert('Gagal menyimpan data warga ke server.');
     }
-    setIsAddModalOpen(false);
-    setEditingCitizen(null);
   };
 
-  const handleDeleteConfirm = (id: string) => {
-    setCitizens(prev => prev.filter(c => c.id !== id));
-    setCitizenToDelete(null);
-    if (selectedCitizen?.id === id) {
-        setSelectedCitizen(null);
+  const handleDeleteConfirm = async (id: string) => {
+    try {
+      await apiService.deleteCitizen(id);
+      setCitizens(prev => prev.filter(c => c.id !== id));
+      
+      // Sync Users state
+      if (setUsers) {
+          const freshUsers = await apiService.getUsers();
+          if (freshUsers) setUsers(freshUsers);
+      }
+
+      setCitizenToDelete(null);
+      if (selectedCitizen?.id === id) {
+          setSelectedCitizen(null);
+      }
+    } catch (e) {
+      alert('Gagal menghapus data warga dari server.');
     }
-    // Note: Deleting a citizen does NOT automatically delete the User account for safety reasons.
   };
 
   const openAddModal = () => {
@@ -434,9 +446,55 @@ const CitizenSection: React.FC<CitizenSectionProps> = ({ users = [], setUsers, c
       {citizenToDelete && (
         <DeleteCitizenModal
           citizen={citizenToDelete}
+          users={users}
           onClose={() => setCitizenToDelete(null)}
           onConfirm={handleDeleteConfirm}
         />
+      )}
+
+      {/* Success Modal */}
+      {isSuccessModalOpen && successModalData && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-slate-800 text-white w-full max-w-md rounded-2xl shadow-2xl p-8 animate-in zoom-in-95 border border-slate-700 relative overflow-hidden">
+             {/* Decorative Element */}
+             <div className="absolute top-0 right-0 w-32 h-32 bg-green-500/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2"></div>
+
+             <div className="relative z-10">
+                <div className="w-16 h-16 bg-green-500/20 text-green-400 rounded-2xl flex items-center justify-center mb-6 border border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.3)]">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-check"><path d="M20 6 9 17l-5-5"/></svg>
+                </div>
+
+                <h3 className="text-xl font-black mb-2 tracking-tight">Data Berhasil Disimpan!</h3>
+                <p className="text-slate-400 mb-6 text-sm leading-relaxed font-medium">
+                  Data warga telah tersimpan aman di server. Akun pengguna otomatis dibuat dengan detail kredensial berikut:
+                </p>
+                
+                <div className="bg-slate-900/80 p-5 rounded-xl border border-slate-700/50 space-y-3 mb-8 font-mono text-xs shadow-inner">
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                      <span className="text-slate-500 font-bold uppercase tracking-wider">Nama Lengkap</span>
+                      <span className="font-bold text-white text-right">{successModalData.name}</span>
+                    </div>
+                    <div className="flex justify-between items-center pb-2 border-b border-slate-800">
+                      <span className="text-slate-500 font-bold uppercase tracking-wider">Username / NIK</span>
+                      <span className="font-bold text-green-400 text-right tracking-wider">{successModalData.username}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-500 font-bold uppercase tracking-wider">Password</span>
+                      <span className="font-bold text-green-400 text-right tracking-wider">{successModalData.nik}</span>
+                    </div>
+                </div>
+
+                <div className="flex justify-end">
+                    <button 
+                      onClick={() => setIsSuccessModalOpen(false)}
+                      className="w-full bg-green-600 hover:bg-green-500 active:bg-green-700 text-white py-3.5 rounded-xl font-black transition-all shadow-lg shadow-green-900/40 hover:shadow-green-500/20 transform hover:-translate-y-0.5 active:translate-y-0 text-sm uppercase tracking-wider"
+                    >
+                      OK, MENGERTI
+                    </button>
+                </div>
+             </div>
+          </div>
+        </div>
       )}
     </div>
   );
